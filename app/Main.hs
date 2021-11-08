@@ -7,9 +7,10 @@ import Control.Monad
 
 main :: IO ()
 main = do
-  let ini = (initialGameBoard $ Quant 2 1 (Var "x") (P (Pred "A" [V (Var "x")])))
+  let ini = initialGameBoard $ Quant 3 2 (Var "x") (P (Pred "A" [V (Var "x")]))
+      i = Map.singleton "A" [[1],[2]] :: Interpretation
   gt <- expandGameTree (Dom 5) ini
-  putStrLn $ show gt
+  putStrLn $ show $ (valueGT i gt)
 
 type Id = String
 
@@ -63,28 +64,51 @@ instance Show Formula where
 
 -- P (Pred "A" [C (Const 3)])
 
--- Quant 2 1 "x" (P (Pred "A" [V (Var "x")]))
+-- Quant 2 1 (Var "x") (P (Pred "A" [V (Var "x")]))
 
-containsFV :: Assignment -> [Term] -> Bool
-containsFV _ [] = False
-containsFV a ((V x):xs) = case Map.lookup x a of
-                                            Just _ -> False
-                                            Nothing -> True
-containsFV a ((C _):xs) = containsFV a xs
+-- Quant 2 1 (Var "x") (Quant 2 1 (Var "y") (P (Pred "A" [V (Var "x"), V (Var "y")])))
 
-assign :: Assignment -> [Term] -> [Int]
-assign a [] = []
-assign a ((C (Const i)):xs) = i:(assign a xs)
-assign a ((V x):xs) = case Map.lookup x a of
-                                    Just i -> i:(assign a xs)
-                                    Nothing -> error "Not assigned variable"
+-- Map.singleton "A" [[0,0],[1,1],[2,2],[3,3],[4,4]]
+
+-- containsFV :: Assignment -> [Term] -> Bool
+-- containsFV _ [] = False
+-- containsFV a ((V x):xs) = case Map.lookup x a of
+--                                             Just _ -> False
+--                                             Nothing -> True
+-- containsFV a ((C _):xs) = containsFV a xs
+--
+-- assign :: Assignment -> [Term] -> [Int]
+-- assign a [] = []
+-- assign a ((C (Const i)):xs) = i:(assign a xs)
+-- assign a ((V x):xs) = case Map.lookup x a of
+--                                     Just i -> i:(assign a xs)
+--                                     Nothing -> error "Not assigned variable"
 
 
-interpretAtom :: Interpretation -> Assignment -> Pred -> Double
-interpretAtom interp a (Pred s terms) | containsFV a terms = error "Not closed predicate"
-                                      | otherwise = do
+-- interpretAtom :: Interpretation -> Assignment -> Pred -> Double
+-- interpretAtom interp a (Pred s terms) | containsFV a terms = error "Not closed predicate"
+--                                       | otherwise = do
+--                                               case Map.lookup s interp of
+--                                                   Just lss -> if elem (assign a terms) lss then 1 else 0
+--                                                   Nothing -> error "Undefined predicate symbol"
+
+containsFV :: [Term] -> Bool
+containsFV [] = False
+containsFV ((V x):xs) = True
+containsFV ((C _):xs) = containsFV xs
+
+
+unsafeTerms :: [Term] -> [Int]
+unsafeTerms [] = []
+unsafeTerms ((C (Const i)):xs) = i:(unsafeTerms xs)
+unsafeTerms _ = error "Free variable encountered"
+
+
+interpretAtom :: Interpretation -> Pred -> Double
+interpretAtom interp (Pred s terms) | containsFV terms = error "Not closed predicate"
+                                    | otherwise = do
                                               case Map.lookup s interp of
-                                                  Just lss -> if elem (assign a terms) lss then 1 else 0
+                                                  Just lss -> if elem (unsafeTerms terms) lss then 1 else 0
                                                   Nothing -> error "Undefined predicate symbol"
 
 
@@ -147,16 +171,27 @@ expandFormula d (Quant k m (Var x) f) = do
                                         gameStates = map (\sub -> plugInOnce x sub f) subs
                                     return gameStates
 
-selectFirst :: [Formula] -> Formula
+selectFirst :: [Formula] -> (Formula,[Formula])
 selectFirst [] = error "Something went wrong"
-selectFirst (f:fs) | isAtom f = selectFirst fs
-                   | otherwise = f
+selectFirst (f:fs) | isAtom f = (fst $ selectFirst fs, f:(snd $ selectFirst fs))
+                   | otherwise = (f,fs)
+
+selectFirstGS :: GameState -> (Formula, GameState)
+selectFirstGS (GS [] []) = error "Something went wrong"
+selectFirstGS (GS us is) | all isAtom us = (fst $ selectFirst is, GS us (snd $ selectFirst is))
+                         | otherwise = (fst $ selectFirst us, GS (snd $ selectFirst us) is)
+
+
+unionGS :: GameState -> GameState -> GameState
+unionGS (GS us1 is1) (GS us2 is2) = GS (us1++us2) (is1 ++ is2)
 
 expandGameState :: Domain -> GameState -> IO (Maybe [GameState])
-expandGameState d (GS us is) | all isAtom (us++is) = return Nothing
-                             | otherwise = do
-                                  let f = selectFirst (us++is)
-                                  fmap Just $ expandFormula d f
+expandGameState d g@(GS us is) | all isAtom (us++is) = return Nothing
+                               | otherwise = do
+                                  let (f, gs) = selectFirstGS g
+                                  gss <- expandFormula d f
+                                  let final = map (\x -> unionGS gs x) gss
+                                  return $ Just final
 
 expandGameTree :: Domain -> GameTree -> IO GameTree
 expandGameTree d (Leaf g) = do
@@ -167,3 +202,20 @@ expandGameTree d (Leaf g) = do
                           gts <- sequence (map (expandGameTree d) (map Leaf gs))
                           return $ Branch g gts
 expandGameTree _ gt = return gt
+
+unsafePred :: Formula -> Pred
+unsafePred (P p) = p
+unsafePred _ = error "Not a predicate"
+
+unsafePredGS :: GameState -> ([Pred],[Pred])
+unsafePredGS (GS us is) = (map unsafePred us, map unsafePred is)
+
+valueGS :: Interpretation -> GameState -> Double
+valueGS i g@(GS us is) = myVal - yourVal
+                       where myVal = sum $ map (\p -> interpretAtom i p) myPs
+                             yourVal = sum $ map (\p -> interpretAtom i p) urPs
+                             (urPs,myPs) = unsafePredGS g
+
+valueGT :: Interpretation -> GameTree -> [Double]
+valueGT i (Leaf gs) = [valueGS i gs]
+valueGT i (Branch _ gts) = concatMap (\gt -> valueGT i gt) gts
