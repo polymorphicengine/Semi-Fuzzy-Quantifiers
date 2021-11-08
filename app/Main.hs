@@ -7,10 +7,12 @@ import Control.Monad
 
 main :: IO ()
 main = do
-  let ini = initialGameBoard $ Quant 3 2 (Var "x") (P (Pred "A" [V (Var "x")]))
-      i = Map.singleton "A" [[1],[2]] :: Interpretation
-  gt <- expandGameTree (Dom 5) ini
-  putStrLn $ show $ (valueGT i gt)
+  let f = Quant 2 1 (Var "x") (P (Pred "A" [V (Var "x")]))
+      i = Map.singleton "A" [[0]] :: Interpretation
+  v <- fmap sum $ replicateM 100000 (play f (Dom 4) i)
+  let x = v/100000
+  putStrLn $ show $ 1 - x
+  putStrLn $ show $ val 2 1 (1/4)
 
 type Id = String
 
@@ -104,11 +106,11 @@ unsafeTerms ((C (Const i)):xs) = i:(unsafeTerms xs)
 unsafeTerms _ = error "Free variable encountered"
 
 
-interpretAtom :: Interpretation -> Pred -> Double
-interpretAtom interp (Pred s terms) | containsFV terms = error "Not closed predicate"
+atomRisk :: Interpretation -> Pred -> Double
+atomRisk interp (Pred s terms) | containsFV terms = error "Not closed predicate"
                                     | otherwise = do
                                               case Map.lookup s interp of
-                                                  Just lss -> if elem (unsafeTerms terms) lss then 1 else 0
+                                                  Just lss -> if elem (unsafeTerms terms) lss then 0 else 1
                                                   Nothing -> error "Undefined predicate symbol"
 
 
@@ -210,12 +212,28 @@ unsafePred _ = error "Not a predicate"
 unsafePredGS :: GameState -> ([Pred],[Pred])
 unsafePredGS (GS us is) = (map unsafePred us, map unsafePred is)
 
-valueGS :: Interpretation -> GameState -> Double
-valueGS i g@(GS us is) = myVal - yourVal
-                       where myVal = sum $ map (\p -> interpretAtom i p) myPs
-                             yourVal = sum $ map (\p -> interpretAtom i p) urPs
+riskGS :: Interpretation -> GameState -> Double
+riskGS i g@(GS us is) = myVal - yourVal
+                       where myVal' = sum $ map (\p -> atomRisk i p) myPs
+                             myVal = myVal' + (fromIntegral $ length urPs) -- betting against formulas costs 1
+                             yourVal = sum $ map (\p -> atomRisk i p) urPs
                              (urPs,myPs) = unsafePredGS g
 
-valueGT :: Interpretation -> GameTree -> [Double]
-valueGT i (Leaf gs) = [valueGS i gs]
-valueGT i (Branch _ gts) = concatMap (\gt -> valueGT i gt) gts
+riskGT :: Interpretation -> GameTree -> [Double]
+riskGT i (Leaf gs) = [riskGS i gs]
+riskGT i (Branch _ gts) = concatMap (\gt -> riskGT i gt) gts
+
+
+play :: Formula -> Domain -> Interpretation -> IO Double
+play f d i = expandGameTree d (initialGameBoard f) >>= \x -> return $ (minimum $ 1:(riskGT i x)) -- append 1 for limited liability
+
+factorial :: Integer -> Integer
+factorial 0 = 1
+factorial n = n * (factorial $ n-1)
+
+binom :: Integer -> Integer -> Double
+binom n k | n >= k = fromInteger $ div (factorial n) ((factorial k)*(factorial $ n-k))
+          | otherwise = error "k > n !"
+
+val :: Integer -> Integer -> Double -> Double
+val n k r = (binom (n+k) n)*r^n*(1-r)^k
