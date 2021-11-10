@@ -5,14 +5,26 @@ import Data.List
 import System.Random
 import Control.Monad
 
-main :: IO ()
-main = do
-  let f = Quant 2 1 (Var "x") (P (Pred "A" [V (Var "x")]))
-      i = Map.singleton "A" [[0]] :: Interpretation
-  v <- fmap sum $ replicateM 100000 (play f (Dom 4) i)
-  let x = v/100000
-  putStrLn $ show $ 1 - x
-  putStrLn $ show $ val 2 1 (1/4)
+import Data.Maybe
+
+import qualified Graphics.UI.Threepenny as UI
+import Graphics.UI.Threepenny.Core hiding (Const)
+
+-- main :: IO ()
+-- main = do
+--   let f = Quant WOR 5 5 (Var "x") (Pred "TOP" []) (Pred "A" [V (Var "x")])
+--       i = Map.insert "B" [[2],[1],[0],[3]] $ Map.singleton "A" [[0],[1],[2],[3],[4],[5],[6]] :: Interpretation
+--   v <- fmap sum $ replicateM 100000 (play f (Dom 8) i)
+--   let x = v/100000
+--   putStrLn $ show $ 1 - x
+--   -- putStrLn $ show $ val 2 1 (2/4)
+--   putStrLn $ show $ valWOR 8 5 5 (7/8)
+
+
+valWOR :: Integer -> Integer -> Integer -> Double -> Double
+valWOR d j k prop = (sum [ smd i | i <- [j..k]] ) / (binom (fromInteger d) k)
+                  where smd i = ((binom ((fromInteger d)*prop) i) * (binom ((fromInteger d)*(1-prop)) (k-i)))
+
 
 type Id = String
 
@@ -24,10 +36,14 @@ data Term = V Var | C Const deriving (Eq)
 
 data Pred = Pred Id [Term] deriving (Eq)
 
-data Formula = P Pred | Quant {iPick :: Int,
+data Mode = WR | WOR deriving Eq
+
+data Formula = P Pred | Quant {mode :: Mode,
+                               iPick :: Int,
                                uPick :: Int,
                                bVar :: Var,
-                               formula :: Formula
+                               range :: Pred,
+                               scope :: Pred
                               }
                               deriving Eq
 
@@ -38,9 +54,9 @@ type Interpretation = Map.Map Id [[Int]]
 
 type Assignment = Map.Map Var Int
 
-data GameState = GS [Formula] [Formula] deriving (Eq, Show)
+data GameState = GS [Formula] [Formula] | Stop deriving (Eq, Show)
 
-data GameTree = Leaf GameState | Branch GameState [GameTree] deriving (Eq, Show)
+-- data GameTree = Leaf GameState | Branch GameState [GameTree] deriving (Eq, Show)
 
 
 -- prettier show instances
@@ -60,7 +76,7 @@ instance Show Pred where
 
 instance Show Formula where
   show (P p) = show p
-  show (Quant k m x f) = "Q" ++ "^" ++ show k ++ "_" ++ show m ++ " " ++ show x ++ "." ++ show f
+  show (Quant _ k m x r s) = "Q" ++ "^" ++ show k ++ "_" ++ show m ++ " " ++ show x ++ "." ++ show r ++ "." ++ show s
 
 
 
@@ -87,13 +103,6 @@ instance Show Formula where
 --                                     Nothing -> error "Not assigned variable"
 
 
--- interpretAtom :: Interpretation -> Assignment -> Pred -> Double
--- interpretAtom interp a (Pred s terms) | containsFV a terms = error "Not closed predicate"
---                                       | otherwise = do
---                                               case Map.lookup s interp of
---                                                   Just lss -> if elem (assign a terms) lss then 1 else 0
---                                                   Nothing -> error "Undefined predicate symbol"
-
 containsFV :: [Term] -> Bool
 containsFV [] = False
 containsFV ((V x):xs) = True
@@ -108,11 +117,17 @@ unsafeTerms _ = error "Free variable encountered"
 
 atomRisk :: Interpretation -> Pred -> Double
 atomRisk interp (Pred s terms) | containsFV terms = error "Not closed predicate"
+                               | otherwise = do
+                                        case Map.lookup s interp of
+                                            Just lss -> if elem (unsafeTerms terms) lss then 0 else 1
+                                            Nothing -> error "Undefined predicate symbol"
+
+interpretAtom :: Interpretation -> Pred -> Bool
+interpretAtom interp (Pred s terms) | containsFV terms = error "Not closed predicate"
                                     | otherwise = do
                                               case Map.lookup s interp of
-                                                  Just lss -> if elem (unsafeTerms terms) lss then 0 else 1
+                                                  Just lss -> if elem (unsafeTerms terms) lss then True else False
                                                   Nothing -> error "Undefined predicate symbol"
-
 
 
 substituteT :: Id -> Int -> [Term] -> [Term]
@@ -122,17 +137,35 @@ substituteT s i (v@(V (Var x)):ts) = if s == x then (C (Const i)):(substituteT s
 
 substitute :: Id -> Int -> Formula -> Formula
 substitute s i (P (Pred p terms)) = (P (Pred p (substituteT s i terms)))
-substitute s i (Quant k m v@(Var x) f) | s /= x = Quant k m v (substitute s i f)
-                                       | otherwise = (substitute s i f)
+substitute s i f = f
 
 
-
-drawOnce :: Domain -> IO Int
-drawOnce (Dom n) = getStdRandom (randomR (0,n-1))
+drawOnce :: Domain -> Interpretation -> Pred -> IO Int
+drawOnce d@(Dom n) i p@(Pred a _) = do
+              x <- getStdRandom (randomR (0,n-1))
+              case a == "TOP" of
+                True -> return x
+                False -> case Map.lookup a i of
+                    Just iss -> case elem [x] iss of
+                          True -> return x
+                          False -> drawOnce d i p
+                    Nothing -> error "Undefined range predicate"
 
 -- n will be k+m
-draw :: Domain -> Int -> IO [Int]
-draw d n = replicateM n $ drawOnce d
+drawWR :: Domain -> Interpretation -> Pred -> Int -> IO [Int]
+drawWR d i p n = replicateM n $ drawOnce d i p
+
+drawWOR :: Domain -> Interpretation -> Pred -> Int -> [Int] -> IO [Int]
+drawWOR d i p 0 is = return []
+drawWOR d@(Dom k) i p n is = case n > k of
+                              True -> error "Can't choose that many constants without repetition"
+                              False -> do
+                                    x <- drawOnce d i p
+                                    case elem x is of
+                                      True -> drawWOR d i p n is
+                                      False -> do
+                                            xs <- drawWOR d i p (n-1) (x:is)
+                                            return (x:xs)
 
 genSubsetsK :: Int -> [Int] -> [[Int]]
 genSubsetsK 0 is = [[]]
@@ -152,58 +185,28 @@ genSubsetsKM k is = genSubsetsKM' is (genSubsetsK k is)
 plugInOnce :: Id -> ([Int],[Int]) -> Formula -> GameState
 plugInOnce x (us,is) f = GS (map (\c -> substitute x c f) us) (map (\c -> substitute x c f) is)
 
-stripQuantifier :: Formula -> (Id, Formula)
+stripQuantifier :: Formula -> (Id, Pred, Pred)
 stripQuantifier (P _) = error "No quantifier to strip"
-stripQuantifier (Quant _ _ (Var x) f) = (x,f)
-
-
-initialGameBoard :: Formula -> GameTree
-initialGameBoard f = Leaf (GS [] [f])
+stripQuantifier (Quant _ _ _ (Var x) rP sP) = (x,rP,sP)
 
 
 isAtom :: Formula -> Bool
 isAtom (P _) = True
 isAtom _ = False
 
-expandFormula :: Domain -> Formula -> IO [GameState]
-expandFormula _ (P _) = error "Can't be called on atoms"
-expandFormula d (Quant k m (Var x) f) = do
-                                    is <- draw d (k+m)
-                                    let subs = genSubsetsKM k is
-                                        gameStates = map (\sub -> plugInOnce x sub f) subs
-                                    return gameStates
-
-selectFirst :: [Formula] -> (Formula,[Formula])
-selectFirst [] = error "Something went wrong"
-selectFirst (f:fs) | isAtom f = (fst $ selectFirst fs, f:(snd $ selectFirst fs))
-                   | otherwise = (f,fs)
-
-selectFirstGS :: GameState -> (Formula, GameState)
-selectFirstGS (GS [] []) = error "Something went wrong"
-selectFirstGS (GS us is) | all isAtom us = (fst $ selectFirst is, GS us (snd $ selectFirst is))
-                         | otherwise = (fst $ selectFirst us, GS (snd $ selectFirst us) is)
-
-
-unionGS :: GameState -> GameState -> GameState
-unionGS (GS us1 is1) (GS us2 is2) = GS (us1++us2) (is1 ++ is2)
-
-expandGameState :: Domain -> GameState -> IO (Maybe [GameState])
-expandGameState d g@(GS us is) | all isAtom (us++is) = return Nothing
-                               | otherwise = do
-                                  let (f, gs) = selectFirstGS g
-                                  gss <- expandFormula d f
-                                  let final = map (\x -> unionGS gs x) gss
-                                  return $ Just final
-
-expandGameTree :: Domain -> GameTree -> IO GameTree
-expandGameTree d (Leaf g) = do
-                  mayGS <- expandGameState d g
-                  case mayGS of
-                    Nothing -> return (Leaf g)
-                    (Just gs) -> do
-                          gts <- sequence (map (expandGameTree d) (map Leaf gs))
-                          return $ Branch g gts
-expandGameTree _ gt = return gt
+expandFormula :: Domain -> Interpretation -> Formula -> IO [GameState]
+expandFormula _ _ (P _) = error "Can't be called on atoms"
+expandFormula d i (Quant mode k m (Var x) rP sP) = case mode of
+                                        WR -> do
+                                            is <- drawWR d i rP (k+m)
+                                            let subs = genSubsetsKM k is
+                                                gameStates = map (\sub -> plugInOnce x sub (P sP)) subs
+                                            return $ gameStates ++ [Stop]
+                                        WOR -> do
+                                            is <- drawWOR d i rP m []
+                                            let subs = [([],is) | (_,is) <- genSubsetsKM k is]
+                                                gameStates = map (\sub -> plugInOnce x sub (P sP)) subs
+                                            return $ gameStates ++ [Stop]
 
 unsafePred :: Formula -> Pred
 unsafePred (P p) = p
@@ -212,28 +215,100 @@ unsafePred _ = error "Not a predicate"
 unsafePredGS :: GameState -> ([Pred],[Pred])
 unsafePredGS (GS us is) = (map unsafePred us, map unsafePred is)
 
+
 riskGS :: Interpretation -> GameState -> Double
 riskGS i g@(GS us is) = myVal - yourVal
                        where myVal' = sum $ map (\p -> atomRisk i p) myPs
                              myVal = myVal' + (fromIntegral $ length urPs) -- betting against formulas costs 1
                              yourVal = sum $ map (\p -> atomRisk i p) urPs
                              (urPs,myPs) = unsafePredGS g
-
-riskGT :: Interpretation -> GameTree -> [Double]
-riskGT i (Leaf gs) = [riskGS i gs]
-riskGT i (Branch _ gts) = concatMap (\gt -> riskGT i gt) gts
+riskGS _ Stop = 1 -- limited liability
 
 
 play :: Formula -> Domain -> Interpretation -> IO Double
-play f d i = expandGameTree d (initialGameBoard f) >>= \x -> return $ (minimum $ 1:(riskGT i x)) -- append 1 for limited liability
+play f d i = expandFormula d i f >>= \gss -> return $ (minimum $ map (\gs -> riskGS i gs) gss)
+
+
+
+--
 
 factorial :: Integer -> Integer
 factorial 0 = 1
 factorial n = n * (factorial $ n-1)
 
-binom :: Integer -> Integer -> Double
-binom n k | n >= k = fromInteger $ div (factorial n) ((factorial k)*(factorial $ n-k))
-          | otherwise = error "k > n !"
+
+binom :: Double -> Integer -> Double
+binom r k | k >= 0 =  product [(r - (fromInteger j) + 1)/(fromInteger j) | j <- [1..k]]
+          | otherwise = error "k < 0"
 
 val :: Integer -> Integer -> Double -> Double
-val n k r = (binom (n+k) n)*r^n*(1-r)^k
+val n k r = (binom (fromInteger $ n+k) n)*r^n*(1-r)^k
+
+
+
+-- initialGameBoard :: Formula -> GameTree
+-- initialGameBoard f = Leaf (GS [] [f])
+--
+--
+-- selectFirst :: [Formula] -> (Formula,[Formula])
+-- selectFirst [] = error "Something went wrong"
+-- selectFirst (f:fs) | isAtom f = (fst $ selectFirst fs, f:(snd $ selectFirst fs))
+--                    | otherwise = (f,fs)
+--
+-- selectFirstGS :: GameState -> (Formula, GameState)
+-- selectFirstGS (GS [] []) = error "Something went wrong"
+-- selectFirstGS (GS us is) | all isAtom us = (fst $ selectFirst is, GS us (snd $ selectFirst is))
+--                          | otherwise = (fst $ selectFirst us, GS (snd $ selectFirst us) is)
+--
+--
+-- unionGS :: GameState -> GameState -> GameState
+-- unionGS (GS us1 is1) (GS us2 is2) = GS (us1++us2) (is1 ++ is2)
+--
+-- expandGameState :: Domain -> GameState -> IO (Maybe [GameState])
+-- expandGameState d g@(GS us is) | all isAtom (us++is) = return Nothing
+--                                | otherwise = do
+--                                   let (f, gs) = selectFirstGS g
+--                                   gss <- expandFormula d f
+--                                   let final = map (\x -> unionGS gs x) gss
+--                                   return $ Just final
+--
+--
+--
+--
+-- expandGameTree :: Domain -> GameTree -> IO GameTree
+-- expandGameTree d (Leaf g) = do
+--                   mayGS <- expandGameState d g
+--                   case mayGS of
+--                     Nothing -> return (Leaf g)
+--                     (Just gs) -> do
+--                           gts <- sequence (map (expandGameTree d) (map Leaf gs))
+--                           return $ Branch g gts
+-- expandGameTree _ gt = return gt
+--
+--
+--
+-- riskGT :: Interpretation -> GameTree -> [Double]
+-- riskGT i (Leaf gs) = [riskGS i gs]
+-- riskGT i (Branch _ gts) = concatMap (\gt -> riskGT i gt) gts
+
+
+---
+
+
+
+main :: IO ()
+main = startGUI defaultConfig setup
+
+setup :: Window -> UI ()
+setup window = void $ do
+    return window # set title "Currency Converter"
+
+    scopeP <- UI.input
+    rangeP  <- UI.input
+
+    getBody window #+ [
+            column [
+                grid [[string "A:", element scopeP]
+                     ,[string "B:"  , element rangeP ]]
+            , string "Amounts update while typing."
+            ]]
