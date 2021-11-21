@@ -28,11 +28,15 @@ setup window = void $ do
 
     dropdown <- selection
 
-    wr_input <- UI.label #+ [UI.input # set UI.type_ "checkbox",
+    wr_check <- UI.input # set UI.type_ "checkbox"
+
+    wor_check <- UI.input # set UI.type_ "checkbox"
+
+    wr_input <- UI.label #+ [element wr_check,
                               UI.span # set text "\\( \\Pi^k_m \\)"
                              ]
 
-    wor_input <- UI.label #+ [UI.input # set UI.type_ "checkbox",
+    wor_input <- UI.label #+ [element wor_check,
                              UI.span # set text "\\( \\Pi^{j,k} \\)"
                             ]
 
@@ -151,11 +155,11 @@ setup window = void $ do
 
     on UI.click button $ const $ startGameFunction
 
-    on UI.checkedChange wr_input $ const $ do
-                                element wor_input # set UI.checked False
+    on UI.checkedChange wr_check $ const $ do
+                                element wor_check # set UI.checked False
 
-    on UI.checkedChange wor_input $ const $ do
-                                element wr_input # set UI.checked False
+    on UI.checkedChange wor_check $ const $ do
+                                element wr_check # set UI.checked False
 
 {-----------------------------------------------------------------------------
    Dropdown menu
