@@ -19,7 +19,22 @@ import Game
 
 setup :: Window -> UI ()
 setup window = void $ do
+
+    mathjaxScript1 <- (UI.mkElement "script")
+                # set UI.src "https://polyfill.io/v3/polyfill.min.js?features=es6"
+
+    mathjaxScript2 <- (UI.mkElement "script")
+                # set UI.src "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+
     dropdown <- selection
+
+    wr_input <- UI.label #+ [UI.input # set UI.type_ "checkbox",
+                              UI.span # set text "\\( \\Pi^k_m \\)"
+                             ]
+
+    wor_input <- UI.label #+ [UI.input # set UI.type_ "checkbox",
+                             UI.span # set text "\\( \\Pi^{j,k} \\)"
+                            ]
 
 {-----------------------------------------------------------------------------
     Display fields
@@ -41,45 +56,59 @@ setup window = void $ do
 ------------------------------------------------------------------------------}
 
     field_domain     <- UI.input
+                            # set style [("width","20%")]
     field_k          <- UI.input
+                            # set style [("width","20%")]
     field_m          <- UI.input
+                            # set style [("width","20%")]
     field_samplesize <- UI.input
+                            # set style [("width","50%")]
 
     field_card1      <- UI.input
+                           # set style [("width","20%")]
     field_card2      <- UI.input
+                           # set style [("width","20%")]
     field_card3      <- UI.input
+                           # set style [("width","20%")]
 
 {-----------------------------------------------------------------------------
     Layout
 ------------------------------------------------------------------------------}
 
-    getBody window #+ [
+    getBody window #+ [element mathjaxScript1,
+                       element mathjaxScript2,
+                       UI.p # set text "\\[\\Pi^k_m x . S(x)\\]",
                        row [
                             column [
                                    grid [
-                                           [element dropdown],
-                                           [string "Value k : ", element field_k],
-                                           [string "Value m : ", element field_m]
-                                        ], UI.hr
-                                   ],
+                                           [],
+                                           [element wr_input, element wor_input],
+                                           [string "\\(k:\\)", element field_k],
+                                           [string "\\(m:\\)", element field_m]
+                                        ],
+                                   UI.hr # set style [("width","75%")]
+                                   ]
+                                   ,
                             column [
                                    grid [
-                                           [string "Cardinality of Domain : ", element field_domain],
-                                           [string "Cardinality of Intersection(Scope,Range) : ", element field_card1],
-                                           [string "Cardinality of Scope without Range : ", element field_card2],
-                                           [string "Cardinality of Range without Scope : ", element field_card3]
-                                        ], UI.hr
+                                           [string "\\( |D| :\\)", element field_domain],
+                                           [string "\\( | S \\cap R | :\\)", element field_card1],
+                                           [string "\\( | S \\setminus R | :\\)", element field_card2],
+                                           [string "\\( | R \\setminus S | :\\)", element field_card3]
+                                        ],
+                                   UI.hr
                                    ]
                             ],
-                            row [element button, element field_samplesize],
-                            row [UI.span # set text "Formula approximately evaluates to: ", element resultApp],
-                            row [UI.span # set text "Formula evaluates to: ", element result ]
-                         ]
+                        row [element button, element field_samplesize],
+                        row [UI.span # set text "Formula approximately evaluates to: ", element resultApp],
+                        row [UI.span # set text "Formula evaluates to: ", element result ]
+                       ]
                    # set style [
                      ("background","lightskyblue"),
                      ("text-align", "left"),
-                     ("color","red"),
-                     ("font-size","11px")
+                     ("color","black"),
+                     ("font-size","20px"),
+                     ("width","100%")
                      ]
 
     let startGameFunction = do
@@ -122,16 +151,25 @@ setup window = void $ do
 
     on UI.click button $ const $ startGameFunction
 
+    on UI.checkedChange wr_input $ const $ do
+                                element wor_input # set UI.checked False
+
+    on UI.checkedChange wor_input $ const $ do
+                                element wr_input # set UI.checked False
+
 {-----------------------------------------------------------------------------
    Dropdown menu
 ------------------------------------------------------------------------------}
 selection :: UI (Element)
-selection = do
- let select options = UI.select
-       # set style [("display","inline-block"), ("width", "161px")]
-       #+ fmap (\x -> UI.option # set UI.text (show x)) options
- mainBox    <- select ["with repetition", "without repetition"]
- return mainBox
+selection =  UI.select
+       # set style [("display","inline-block"), ("width", "200px"), ("height", "200px")]
+       #+ [UI.option # set value "WR"
+                     #+ [UI.div # set text "\\[\\Pi^k_m x . S(x)\\]"
+                              # set style [("width", "200px"), ("height", "200px")]
+                        ]
+                     # set style [("width", "200px"), ("height", "200px")]
+       ]
+
 
 {-----------------------------------------------------------------------------
    Functionality
