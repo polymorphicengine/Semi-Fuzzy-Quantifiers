@@ -125,7 +125,7 @@ setup window = void $ do
                        card2' <- field_card2 # get UI.value
                        card3' <- field_card3 # get UI.value
 
-                       mode <- dropdown # get UI.value
+                       mode <- wr_check # get UI.checked
 
                        let domain_size = read domain_size'
                            k = read k' :: Int
@@ -139,19 +139,18 @@ setup window = void $ do
                            interpretation = Map.insert "S" interpScope $ Map.singleton "R" interpRange :: Interpretation
 
                        case mode of
-                         "\"with repetition\"" -> do
+                         True -> do
                                       let formula = Quant WR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
                                           prop = (fromIntegral (card1 + card2)) / (fromIntegral domain_size) :: Double
                                       v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                       element resultApp # set UI.text (show $ 1 - v / (fromIntegral samplesize))
                                       element result # set UI.text (show $ valWR (fromIntegral k) (fromIntegral m) prop)
-                         "\"without repetition\"" -> do
+                         False -> do
                                       let formula = Quant WOR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
                                           prop = (fromIntegral (card1 + card2)) / (fromIntegral domain_size) :: Double
                                       v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                       element resultApp # set UI.text (show $ 1 - v / (fromIntegral samplesize))
                                       element result # set UI.text (show $ valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop)
-                         x -> error x
 
     on UI.click button $ const $ startGameFunction
 
