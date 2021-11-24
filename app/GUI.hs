@@ -9,6 +9,8 @@ import Text.Printf
 import qualified Graphics.UI.Threepenny      as UI
 import           Graphics.UI.Threepenny.Core
 
+import Text.Read (readMaybe)
+
 import Game
 
 {-----------------------------------------------------------------------------
@@ -41,12 +43,14 @@ setup window = void $ do
                              UI.span # set text "\\( \\Pi^{j,k} \\)"
                             ]
 
+    tooltipContainer <- UI.div #. "tooltip"
+    tooltipstyle <- (UI.mkElement "style") # set text ".tooltip {position: relative;display: inline-block;} .tooltip .tooltiptext { visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; padding: 5px 0; border-radius: 6px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;} .tooltip:hover .tooltiptext {visibility: visible;opacity: 1;}"
+
 {-----------------------------------------------------------------------------
     Display fields
 ------------------------------------------------------------------------------}
 
-    resultApp           <- UI.span
-    result              <- UI.span
+    display <- UI.pre
 
 {-----------------------------------------------------------------------------
     Buttons
@@ -91,46 +95,40 @@ setup window = void $ do
  ------------------------------------------------------------------------------}
 
     text_field_domain       <- UI.span # set text "\\(|D|:\\)"
-    on UI.hover text_field_domain $ \_ -> do
-        element text_field_domain # set text "Give me a domain size!"
-    on UI.leave text_field_domain $ \_ -> do
-        element text_field_domain # set text "\\(|D|:\\)"
+    -- on UI.hover text_field_domain $ \_ -> do
+    --     element text_field_domain # set text "Give me a domain size!"
+    -- on UI.leave text_field_domain $ \_ -> do
+    --     element text_field_domain # set text "\\(|D|:\\)"
 
     text_field_k            <- UI.span # set text "\\(k:\\)"
-    on UI.hover text_field_k $ \_ -> do
-        element text_field_k # set text "Give me some non-negative integer"
-    on UI.leave text_field_k $ \_ -> do
-        element text_field_k # set text "\\(k:\\)"
+    -- tooltip_k <- UI.span #. "tooltiptext" # set text "Enter a non-negative integer"
 
     text_field_m            <- UI.span # set text "\\(m:\\)"
-    on UI.hover text_field_m $ \_ -> do
-        element text_field_m # set text "Give me some non-negative integer"
-    on UI.leave text_field_m $ \_ -> do
-        element text_field_m # set text "\\(m:\\)"
+    -- tooltip_m <- UI.span #. "tooltiptext" # set text "Enter a non-negative integer"
 
     text_field_samplesize   <- UI.span # set text "Sample size:"
-    on UI.hover text_field_samplesize $ \_ -> do
-        element text_field_samplesize # set text "Darf's a bissal mehr sein?"
-    on UI.leave text_field_samplesize $ \_ -> do
-        element text_field_samplesize # set text "Sample size:"
+    -- on UI.hover text_field_samplesize $ \_ -> do
+    --     element text_field_samplesize # set text "Darf's a bissal mehr sein?"
+    -- on UI.leave text_field_samplesize $ \_ -> do
+    --     element text_field_samplesize # set text "Sample size:"
 
     text_field_card1        <- UI.span # set text "\\( | S \\cap R | :\\)"
-    on UI.hover text_field_card1  $ \_ -> do
-        element text_field_card1  # set text "Size of intersection of scope and range"
-    on UI.leave text_field_card1  $ \_ -> do
-        element text_field_card1  # set text "\\( | S \\cap R | :\\)"
+    -- on UI.hover text_field_card1  $ \_ -> do
+    --     element text_field_card1  # set text "Size of intersection of scope and range"
+    -- on UI.leave text_field_card1  $ \_ -> do
+    --     element text_field_card1  # set text "\\( | S \\cap R | :\\)"
 
     text_field_card2        <- UI.span # set text "\\( | S \\setminus R | :\\)"
-    on UI.hover text_field_card2 $ \_ -> do
-        element text_field_card2 # set text "Size of scope without range"
-    on UI.leave text_field_card2 $ \_ -> do
-        element text_field_card2 # set text "\\( | S \\setminus R | :\\)"
+    -- on UI.hover text_field_card2 $ \_ -> do
+    --     element text_field_card2 # set text "Size of scope without range"
+    -- on UI.leave text_field_card2 $ \_ -> do
+    --     element text_field_card2 # set text "\\( | S \\setminus R | :\\)"
 
     text_field_card3        <- UI.span # set text "\\( | R \\setminus S | :\\)"
-    on UI.hover text_field_card3  $ \_ -> do
-        element text_field_card3  # set text "Size of scope without range"
-    on UI.leave text_field_card3  $ \_ -> do
-        element text_field_card3  # set text "\\( | R \\setminus S | :\\)"
+    -- on UI.hover text_field_card3  $ \_ -> do
+    --     element text_field_card3  # set text "Size of scope without range"
+    -- on UI.leave text_field_card3  $ \_ -> do
+    --     element text_field_card3  # set text "\\( | R \\setminus S | :\\)"
 
 {-----------------------------------------------------------------------------
     Layout
@@ -138,7 +136,7 @@ setup window = void $ do
 
     getBody window #+ [element mathjaxScript1,
                        element mathjaxScript2,
-                       --UI.p # set text "\\[\\Pi^k_m x . S(x)\\]",
+                       element tooltipstyle,
                        UI.p # set text "      Semi-Fuzzy Playground" # set style [("color", "blue"), ("text-align", "center")],
                        row [
                             column [
@@ -148,8 +146,8 @@ setup window = void $ do
                                           ("padding-left", "47px"), ("padding-top", "7px")
                                           ],
                                    grid [
-                                           [element text_field_k , element field_k],
-                                           [element text_field_m , element field_m]
+                                           [element text_field_k, element field_k],
+                                           [element text_field_m, element field_m]
                                         ] # set style [
                                           ("text-align", "center"),
                                           ("padding-top", "22px"),
@@ -183,10 +181,8 @@ setup window = void $ do
                                   ("padding-left", "137px"),
                                   ("padding-top", "15px")
                                 ],
-                            row [UI.span # set text "Formula approximately evaluates to: ", element resultApp] # set style [
-                                  ("text-align", "right"), ("padding-top", "15px"), ("color", "blue")],
-                            row [UI.span # set text "Formula evaluates to: ", element result ] # set style [
-                                  ("text-align", "right"), ("padding-top", "5px"), ("color", "blue")]
+                            row [element display] # set style [
+                                  ("text-align", "center"), ("padding-top", "15px"), ("color", "blue")]
                        ] # set style [
                            ("background-color","lightskyblue"),
                            ("text-align", "right"),
@@ -208,32 +204,70 @@ setup window = void $ do
                        card2' <- field_card2 # get UI.value
                        card3' <- field_card3 # get UI.value
 
-                       mode <- wr_check # get UI.checked
+                       modeWR <- wr_check # get UI.checked
+                       modeWOR <- wor_check # get UI.checked
 
-                       let domain_size = read domain_size'
-                           k = read k' :: Int
-                           m = read m' :: Int
-                           samplesize = read samplesize' :: Int
-                           card1 = read card1' :: Int
-                           card2 = read card2' :: Int
-                           card3 = read card3' :: Int
-                           interpScope = [[x] | x <- [0..card1 - 1]] ++ [[x] | x <- [card1 .. (card1 + card2) - 1]]
-                           interpRange = [[x] | x <- [0..card1 - 1]] ++ [[x] | x <- [(card1 + card2) .. (card1 + card2 + card3) - 1]]
-                           interpretation = Map.insert "S" interpScope $ Map.singleton "R" interpRange :: Interpretation
+                       let may_domain_size = readMaybe domain_size'
+                           may_k = readMaybe k'
+                           may_m = readMaybe m'
+                           may_samplesize = readMaybe samplesize'
+                           may_card1 = readMaybe card1'
+                           may_card2 = readMaybe card2'
+                           may_card3 = readMaybe card3'
 
-                       case mode of
-                         True -> do
-                                      let formula = Quant WR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
-                                          prop = (fromIntegral (card1 + card2)) / (fromIntegral domain_size) :: Double
-                                      v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
-                                      element resultApp # set UI.text (show $ 1 - v / (fromIntegral samplesize))
-                                      element result # set UI.text (show $ valWR (fromIntegral k) (fromIntegral m) prop)
+                       case elem Nothing [may_domain_size, may_k, may_m, may_samplesize, may_card1, may_card2, may_card3] of
+                         True -> element display # set UI.text "Please only enter non negative integers"
                          False -> do
-                                      let formula = Quant WOR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
-                                          prop = (fromIntegral (card1 + card2)) / (fromIntegral domain_size) :: Double
-                                      v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
-                                      element resultApp # set UI.text (show $ 1 - v / (fromIntegral samplesize))
-                                      element result # set UI.text (show $ valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop)
+                           let domain_size = strip may_domain_size
+                               k = strip may_k
+                               m = strip may_m
+                               samplesize = strip may_samplesize
+                               card1 = strip may_card1
+                               card2 = strip may_card2
+                               card3 = strip may_card3
+                               interpScope = [[x] | x <- [0..card1 - 1]] ++ [[x] | x <- [card1 .. (card1 + card2) - 1]]
+                               interpRange = [[x] | x <- [0..card1 - 1]] ++ [[x] | x <- [(card1 + card2) .. (card1 + card2 + card3) - 1]]
+                               interpretation = Map.insert "S" interpScope $ Map.singleton "R" interpRange :: Interpretation
+
+                           case all (>= 0) [domain_size,k,m,samplesize,card1,card2,card3] of
+                                False -> element display # set UI.text "Please only enter non negative integers"
+                                True -> case card1 + card2 + card3 <= domain_size of
+                                    False -> element display # set UI.text "The sum of the cardinalities exceeds the size of the domain!"
+                                    True -> case card1 + card3 == 0 of
+                                                True -> element display # set UI.text "Range should not be falsum!"
+                                                False -> case (modeWR, modeWOR) of
+                                                             (True,False) -> do
+                                                                          let formula = Quant WR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                              prop = (fromIntegral (card1 + card2)) / (fromIntegral domain_size) :: Double
+                                                                          v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
+
+                                                                          case card1 + card3 == domain_size of
+                                                                            True -> do
+                                                                                let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                                    exVal = (show $ valWR (fromIntegral k) (fromIntegral m) prop)
+                                                                                element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
+                                                                            False -> do
+                                                                                let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                                element display # set UI.text ("The approximated value is: " ++ appVal)
+
+                                                             (False,True) -> case k+m <= domain_size of
+                                                                                False -> element display # set UI.text "Can't select that many elements without repetition!"
+                                                                                True -> do
+                                                                                    let formula = Quant WOR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                                        prop = (fromIntegral (card1 + card2)) / (fromIntegral domain_size) :: Double
+                                                                                    v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
+
+                                                                                    case card1 + card3 == domain_size of
+                                                                                      True -> do
+                                                                                          let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                                              exVal = (show $ valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop)
+                                                                                          element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
+                                                                                      False -> do
+                                                                                          let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                                          element display # set UI.text ("The approximated value is: " ++ appVal)
+
+                                                             (False,False) -> element display # set UI.text "Please select a quantifier"
+                                                             (True,True) -> element display # set UI.text "Please select a quantifier"
 
     on UI.click button $ const $ startGameFunction
 
@@ -260,3 +294,7 @@ selection =  UI.select
 {-----------------------------------------------------------------------------
    Functionality
 ------------------------------------------------------------------------------}
+
+strip :: Maybe a -> a
+strip (Just x) = x
+strip Nothing = error "Something went wrong"
