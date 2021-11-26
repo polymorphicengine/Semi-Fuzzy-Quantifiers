@@ -18,9 +18,9 @@ data Term = V Var | C Const deriving (Eq)
 
 data Pred = Pred Id [Term] deriving (Eq)
 
-data Mode = WR | WOR deriving Eq
+data Mode = WR | WOR | BC_L | BC_G deriving Eq
 
-data Formula = P Pred | Quant {mode :: Mode,
+data Formula = Bot | P Pred | Quant {mode :: Mode,
                                iPick :: Int,
                                uPick :: Int,
                                bVar :: Var,
@@ -56,6 +56,7 @@ instance Show Pred where
 instance Show Formula where
   show (P p) = show p
   show (Quant _ k m x r s) = "Q" ++ "^" ++ show k ++ "_" ++ show m ++ " " ++ show x ++ "." ++ show r ++ "." ++ show s
+  show Bot = "Bot"
 
 containsFV :: [Term] -> Bool
 containsFV [] = False
@@ -69,19 +70,14 @@ unsafeTerms ((C (Const i)):xs) = i:(unsafeTerms xs)
 unsafeTerms _ = error "Free variable encountered"
 
 
-atomRisk :: Interpretation -> Pred -> Double
-atomRisk interp (Pred s terms) | containsFV terms = error "Not closed predicate"
-                               | otherwise = do
-                                        case Map.lookup s interp of
-                                            Just lss -> if elem (unsafeTerms terms) lss then 0 else 1
-                                            Nothing -> error "Undefined predicate symbol"
-
-interpretAtom :: Interpretation -> Pred -> Bool
-interpretAtom interp (Pred s terms) | containsFV terms = error "Not closed predicate"
-                                    | otherwise = do
-                                              case Map.lookup s interp of
-                                                  Just lss -> if elem (unsafeTerms terms) lss then True else False
-                                                  Nothing -> error "Undefined predicate symbol"
+atomRisk :: Interpretation -> Formula -> Double
+atomRisk interp (P (Pred s terms)) | containsFV terms = error "Not closed predicate"
+                                   | otherwise = do
+                                          case Map.lookup s interp of
+                                              Just lss -> if elem (unsafeTerms terms) lss then 0 else 1
+                                              Nothing -> error "Undefined predicate symbol"
+atomRisk _ Bot = 1
+atomRisk _ _ = error "Cannot evaluate a gamestate that is not fully expanded"
 
 
 substituteT :: Id -> Int -> [Term] -> [Term]
@@ -147,6 +143,7 @@ stripQuantifier (Quant _ _ _ (Var x) rP sP) = (x,rP,sP)
 
 isAtom :: Formula -> Bool
 isAtom (P _) = True
+isAtom Bot = True
 isAtom _ = False
 
 expandFormula :: Domain -> Interpretation -> Formula -> IO [GameState]
@@ -155,35 +152,44 @@ expandFormula d i (Quant mode k m (Var x) rP sP) = case mode of
                                         WR -> do
                                             is <- drawWR d i rP (k+m)
                                             let subs = genSubsetsKM k is
-                                                gameStates = map (\sub -> plugInOnce x sub (P sP)) subs
+                                                gameStates = map (\(GS xs ys) -> GS xs (ys ++ (replicate m Bot))) $ map (\sub -> plugInOnce x sub (P sP)) subs
                                             return $ gameStates ++ [Stop]
                                         WOR -> do
                                             is <- drawWOR d i rP m []
                                             let subs = [([],is) | (_,is) <- genSubsetsKM k is]
                                                 gameStates = map (\sub -> plugInOnce x sub (P sP)) subs
                                             return $ gameStates ++ [Stop]
-
-unsafePred :: Formula -> Pred
-unsafePred (P p) = p
-unsafePred _ = error "Not a predicate"
-
-unsafePredGS :: GameState -> ([Pred],[Pred])
-unsafePredGS (GS us is) = (map unsafePred us, map unsafePred is)
+                                        BC_L -> do
+                                          us <- drawWR d i rP (k+m)
+                                          let yourFormulas = (map (\c -> substitute x c (P sP)) us)
+                                              gameState = GS yourFormulas (replicate m Bot)
+                                          return $ [gameState, Stop]
+                                        BC_G -> do
+                                          us <- drawWR d i rP (k+m)
+                                          let myFormulas = (map (\c -> substitute x c (P sP)) us)
+                                              gameState = GS (replicate m Bot) myFormulas
+                                          return $ [gameState, Stop]
 
 
 riskGS :: Interpretation -> GameState -> Double
 riskGS i g@(GS us is) = myVal - yourVal
-                       where myVal' = sum $ map (\p -> atomRisk i p) myPs
-                             myVal = myVal' + (fromIntegral $ length urPs) -- betting against formulas costs 1
-                             yourVal = sum $ map (\p -> atomRisk i p) urPs
-                             (urPs,myPs) = unsafePredGS g
+                       where myVal = sum $ map (\p -> atomRisk i p) is
+                             yourVal = sum $ map (\p -> atomRisk i p) us
 riskGS _ Stop = 1 -- limited liability
 
 
 play :: Formula -> Domain -> Interpretation -> IO Double
 play f d i = expandFormula d i f >>= \gss -> return $ (minimum $ map (\gs -> riskGS i gs) gss)
 
+--
 
+proportion :: Interpretation -> Double
+proportion i = case Map.lookup "R" i of
+                    Nothing -> error "oops"
+                    Just rs -> case Map.lookup "S" i of
+                      Nothing -> error "oops"
+                      Just ss -> (fromIntegral $ length int) / (fromIntegral $ length rs)
+                                  where int = [x | x <- rs, elem x ss]
 
 --
 
@@ -202,3 +208,9 @@ valWR n k r = (binom (fromInteger $ n+k) n)*r^n*(1-r)^k
 valWOR :: Integer -> Integer -> Integer -> Double -> Double
 valWOR d j k prop = (sum [ smd i | i <- [j..k]] ) / (binom (fromInteger d) k)
                   where smd i = ((binom ((fromInteger d)*prop) i) * (binom ((fromInteger d)*(1-prop)) (k-i)))
+
+valBC_L :: Integer -> Integer -> Double -> Double
+valBC_L k m prop = min 1 (max 0 (1+(fromIntegral k)-(fromIntegral $ m+k)*prop))
+
+valBC_G :: Integer -> Integer -> Double -> Double
+valBC_G k m prop = min 1 (max 0 (1-(fromIntegral k)+(fromIntegral $ m+k)*prop))

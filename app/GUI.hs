@@ -35,12 +35,24 @@ setup window = void $ do
 
     wor_check <- UI.input # set UI.type_ "checkbox"
 
+    bcL_check <- UI.input # set UI.type_ "checkbox"
+
+    bcG_check <- UI.input # set UI.type_ "checkbox"
+
     wr_input <- UI.label #+ [element wr_check,
                               UI.span # set text "\\( \\Pi^k_m \\)"
                              ]
 
     wor_input <- UI.label #+ [element wor_check,
                              UI.span # set text "\\( \\Pi^{j,k} \\)"
+                            ]
+
+    bcL_input <- UI.label #+ [element bcL_check,
+                              UI.span # set text "\\( L^k_m \\)"
+                             ]
+
+    bcG_input <- UI.label #+ [element bcG_check,
+                             UI.span # set text "\\( G^k_m \\)"
                             ]
 
     tooltipContainer <- UI.div #. "tooltip"
@@ -82,11 +94,11 @@ setup window = void $ do
     field_samplesize <- UI.input
                             # set style [("width","50%"),("text-align","center")]
 
-    field_scopeSize      <- UI.input
+    field_scopeSize  <- UI.input
                            # set style [("width","20%"),("text-align","center")]
-    field_intSize      <- UI.input
+    field_intSize    <- UI.input
                            # set style [("width","20%"),("text-align","center")]
-    field_rangeSize      <- UI.input
+    field_rangeSize  <- UI.input
                            # set style [("width","20%"),("text-align","center")]
 
 
@@ -95,10 +107,6 @@ setup window = void $ do
  ------------------------------------------------------------------------------}
 
     text_field_domain       <- UI.span # set text "\\(|D|:\\)"
-    -- on UI.hover text_field_domain $ \_ -> do
-    --     element text_field_domain # set text "Give me a domain size!"
-    -- on UI.leave text_field_domain $ \_ -> do
-    --     element text_field_domain # set text "\\(|D|:\\)"
 
     text_field_k            <- UI.span # set text "\\(k:\\)"
     -- tooltip_k <- UI.span #. "tooltiptext" # set text "Enter a non-negative integer"
@@ -107,28 +115,14 @@ setup window = void $ do
     -- tooltip_m <- UI.span #. "tooltiptext" # set text "Enter a non-negative integer"
 
     text_field_samplesize   <- UI.span # set text "Sample size:"
-    -- on UI.hover text_field_samplesize $ \_ -> do
-    --     element text_field_samplesize # set text "Darf's a bissal mehr sein?"
-    -- on UI.leave text_field_samplesize $ \_ -> do
-    --     element text_field_samplesize # set text "Sample size:"
 
     text_field_scope        <- UI.span # set text "\\( | S | :\\)"
-    -- on UI.hover text_field_card1  $ \_ -> do
-    --     element text_field_card1  # set text "Size of intersection of scope and range"
-    -- on UI.leave text_field_card1  $ \_ -> do
-    --     element text_field_card1  # set text "\\( | S \\cap R | :\\)"
 
-    text_field_int        <- UI.span # set text "\\( | R \\cap S | :\\)"
-    -- on UI.hover text_field_card2 $ \_ -> do
-    --     element text_field_card2 # set text "Size of scope without range"
-    -- on UI.leave text_field_card2 $ \_ -> do
-    --     element text_field_card2 # set text "\\( | S \\setminus R | :\\)"
+    text_field_int          <- UI.span # set text "\\( | R \\cap S | :\\)"
+
 
     text_field_range        <- UI.span # set text "\\( | R | :\\)"
-    -- on UI.hover text_field_card3  $ \_ -> do
-    --     element text_field_card3  # set text "Size of scope without range"
-    -- on UI.leave text_field_card3  $ \_ -> do
-    --     element text_field_card3  # set text "\\( | R \\setminus S | :\\)"
+
 
 {-----------------------------------------------------------------------------
     Layout
@@ -141,7 +135,8 @@ setup window = void $ do
                        row [
                             column [
                                    grid [
-                                           [element wr_input, element wor_input]
+                                           [element wr_input, element wor_input],
+                                           [element bcL_input, element bcG_input]
                                    ] # set style [
                                           ("padding-left", "47px"), ("padding-top", "7px")
                                           ],
@@ -206,6 +201,15 @@ setup window = void $ do
 
                        modeWR <- wr_check # get UI.checked
                        modeWOR <- wor_check # get UI.checked
+                       modeBCL <- bcL_check # get UI.checked
+                       modeBCG <- bcG_check # get UI.checked
+
+                       let mode = case (modeWR,modeWOR,modeBCL,modeBCG) of
+                                          (True,False,False,False) -> WR
+                                          (False,True,False,False) -> WOR
+                                          (False,False,True,False) -> BC_L
+                                          (False,False,False,True) -> BC_G
+                                          _ -> WR
 
                        let may_domain_size = readMaybe domain_size'
                            may_k = readMaybe k'
@@ -238,27 +242,38 @@ setup window = void $ do
                                     False -> element display # set UI.text "The sum of the cardinalities exceeds the size of the domain!"
                                     True -> case card1 + card3 == 0 of
                                                 True -> element display # set UI.text "Range should not be falsum!"
-                                                False -> case (modeWR, modeWOR) of
-                                                             (True,False) -> do
-                                                                          let formula = Quant WR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
-                                                                              prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
-                                                                          v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
-                                                                          let appVal = (show $ 1 - v / (fromIntegral samplesize))
-                                                                              exVal = (show $ valWR (fromIntegral k) (fromIntegral m) prop)
-                                                                          element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
+                                                False -> case mode of
+                                                             WR -> do
+                                                                let formula = Quant WR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                    prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
+                                                                let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                    exVal = (show $ valWR (fromIntegral k) (fromIntegral m) prop)
+                                                                element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
 
-                                                             (False,True) -> case k+m <= domain_size of
-                                                                                False -> element display # set UI.text "Can't select that many elements without repetition!"
-                                                                                True -> do
-                                                                                    let formula = Quant WOR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
-                                                                                        prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
-                                                                                    v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
-                                                                                    let appVal = (show $ 1 - v / (fromIntegral samplesize))
-                                                                                        exVal = (show $ valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop)
-                                                                                    element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
-
-                                                             (False,False) -> element display # set UI.text "Please select a quantifier"
-                                                             (True,True) -> element display # set UI.text "Please select a quantifier"
+                                                             WOR -> case k+m <= domain_size of
+                                                                          False -> element display # set UI.text "Can't select that many elements without repetition!"
+                                                                          True -> do
+                                                                              let formula = Quant WOR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                                  prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                              v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
+                                                                              let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                                  exVal = (show $ valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop)
+                                                                              element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
+                                                             BC_L -> do
+                                                               let formula = Quant BC_L k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                   prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                               v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
+                                                               let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                   exVal = (show $ valBC_L (fromIntegral k) (fromIntegral m) prop)
+                                                               element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
+                                                             BC_G -> do
+                                                                let formula = Quant BC_G k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                    prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
+                                                                let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                    exVal = (show $ valBC_G (fromIntegral k) (fromIntegral m) prop)
+                                                                element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
 
     on UI.click button $ const $ startGameFunction
 
