@@ -163,12 +163,14 @@ expandFormula d i (Quant mode k m (Var x) rP sP) = case mode of
                                           us <- drawWR d i rP (k+m)
                                           let yourFormulas = (map (\c -> substitute x c (P sP)) us)
                                               gameState = GS yourFormulas (replicate m Bot)
-                                          return $ [gameState, Stop]
+                                              val = - (fromIntegral k) + (fromIntegral $ m+k)*(proportion i)
+                                          return $ if val <= 0 then [GS [] []] else if val <= 1 then [gameState] else [Stop]
                                         BC_G -> do
                                           us <- drawWR d i rP (k+m)
                                           let myFormulas = (map (\c -> substitute x c (P sP)) us)
                                               gameState = GS (replicate m Bot) myFormulas
-                                          return $ [gameState, Stop]
+                                              val = (fromIntegral k) - (fromIntegral $ m+k)*(proportion i)
+                                          return $ if val <= 0 then [GS [] []] else if val <= 1 then [gameState] else [Stop]
 
 
 riskGS :: Interpretation -> GameState -> Double
