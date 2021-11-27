@@ -232,9 +232,9 @@ setup window = void $ do
                                card1 = intSize
                                card2 = scopeSize - intSize
                                card3 = rangeSize - intSize
-                               interpScope = [[x] | x <- [0..card1 - 1]] ++ [[x] | x <- [card1 .. (card1 + card2) - 1]]
-                               interpRange = [[x] | x <- [0..card1 - 1]] ++ [[x] | x <- [(card1 + card2) .. (card1 + card2 + card3) - 1]]
-                               interpretation = Map.insert "S" interpScope $ Map.singleton "R" interpRange :: Interpretation
+                               interpScope = [x | x <- [0..card1 - 1]] ++ [x | x <- [card1 .. (card1 + card2) - 1]]
+                               interpRange = [x | x <- [0..card1 - 1]] ++ [x | x <- [(card1 + card2) .. (card1 + card2 + card3) - 1]]
+                               interpretation = I interpRange interpScope
 
                            case all (>= 0) [domain_size,k,m,samplesize,card1,card2,card3] of
                                 False -> element display # set UI.text "Please only enter non negative integers"
@@ -244,7 +244,7 @@ setup window = void $ do
                                                 True -> element display # set UI.text "Range should not be falsum!"
                                                 False -> case mode of
                                                              WR -> do
-                                                                let formula = Quant WR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                let formula = Q WR k m
                                                                     prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                 v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                 let appVal = (show $ 1 - v / (fromIntegral samplesize))
@@ -254,21 +254,21 @@ setup window = void $ do
                                                              WOR -> case k+m <= domain_size of
                                                                           False -> element display # set UI.text "Can't select that many elements without repetition!"
                                                                           True -> do
-                                                                              let formula = Quant WOR k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                              let formula = Q WOR k m
                                                                                   prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                               v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                               let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                                   exVal = (show $ valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop)
                                                                               element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
                                                              BC_L -> do
-                                                               let formula = Quant BC_L k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                               let formula = Q BC_L k m
                                                                    prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                    exVal = (show $ valBC_L (fromIntegral k) (fromIntegral m) prop)
                                                                element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
                                                              BC_G -> do
-                                                                let formula = Quant BC_G k m (Var "x") (Pred "R" []) (Pred "S" [V (Var "x")])
+                                                                let formula = Q BC_G k m 
                                                                     prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                 v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                 let appVal = (show $ 1 - v / (fromIntegral samplesize))

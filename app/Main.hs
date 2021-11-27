@@ -11,13 +11,8 @@ import GUI
 
 -- main :: IO ()
 -- main = do
---   let f = Quant WR 1 1 (Var "x") (Pred "B" []) (Pred "A" [V (Var "x")])
---       i = Map.insert "B" [] $ Map.singleton "A" [[0],[1],[2],[3],[4]] :: Interpretation
---   v <- fmap sum $ replicateM 100000 (play f (Dom 10) i)
---   let x = v/100000
---   putStrLn $ show $ 1 - x
---   -- putStrLn $ show $ val 2 1 (2/4)
---   putStrLn $ show $ valWOR 8 5 5 (7/8)
+--   xs <- drawWR (Dom 10) (I [0..9] []) 10
+--   putStrLn $ show xs
 
 main :: IO ()
 main = startGUI defaultConfig setup
