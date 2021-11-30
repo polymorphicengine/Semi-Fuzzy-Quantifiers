@@ -23,46 +23,41 @@ import Game
 setup :: Window -> UI ()
 setup window = void $ do
 
+{-----------------------------------------------------------------------------
+  Scripts
+------------------------------------------------------------------------------}
+
     mathjaxScript1 <- (UI.mkElement "script")
                 # set UI.src "https://polyfill.io/v3/polyfill.min.js?features=es6"
-
     mathjaxScript2 <- (UI.mkElement "script")
                 # set UI.src "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 
-    dropdown <- selection
+{-----------------------------------------------------------------------------
+  Checkboxes
+------------------------------------------------------------------------------}
 
     wr_check <- UI.input # set UI.type_ "checkbox"
-
     wor_check <- UI.input # set UI.type_ "checkbox"
-
     bcL_check <- UI.input # set UI.type_ "checkbox"
-
     bcG_check <- UI.input # set UI.type_ "checkbox"
-
     bcH_check <- UI.input # set UI.type_ "checkbox"
-
     w_check <- UI.input # set UI.type_ "checkbox"
 
     wr_input <- UI.label #+ [element wr_check,
                               UI.span # set text "\\( \\Pi^k_m \\)"
                              ]
-
     wor_input <- UI.label #+ [element wor_check,
                              UI.span # set text "\\( \\Pi^{j,k} \\)"
                             ]
-
     bcL_input <- UI.label #+ [element bcL_check,
                               UI.span # set text "\\( L^k_m \\)"
                              ]
-
     bcG_input <- UI.label #+ [element bcG_check,
                              UI.span # set text "\\( G^k_m \\)"
                             ]
-
     bcH_input <- UI.label #+ [element bcH_check,
                              UI.span # set text "\\( H^s_t \\)"
                             ]
-
     w_input <- UI.label #+ [element w_check,
                              UI.span # set text "\\( W_n \\)"
                             ]
@@ -83,13 +78,10 @@ setup window = void $ do
 
     button <- UI.button # set UI.text " Start game! "
                         # set style [("background-image","linear-gradient(to bottom right, red,yellow)")]
-
     on UI.hover button $ \_ -> do
         element button # set text "Yes, push me!"
-
     on UI.leave button $ \_ -> do
         element button # set text " Start game! "
-
     on UI.click button $ \_ -> do
         element button # set text " Thonk you! "
 
@@ -101,16 +93,12 @@ setup window = void $ do
                             # set style [("width","20%"),("text-align","center")]
     field_k          <- UI.input
                             # set style [("width","20%"),("text-align","center")]
-
     field_m          <- UI.input
                             # set style [("width","20%"), ("text-align", "center")]
-
     field_n          <- UI.input
                             # set style [("width","20%"), ("text-align", "center")]
-
     field_samplesize <- UI.input
                             # set style [("width","50%"),("text-align","center")]
-
     field_scopeSize  <- UI.input
                            # set style [("width","20%"),("text-align","center")]
     field_intSize    <- UI.input
@@ -120,7 +108,7 @@ setup window = void $ do
 
 
  {-----------------------------------------------------------------------------
-     D. Hoverhoff
+     Textfields
  ------------------------------------------------------------------------------}
 
     text_field_domain       <- UI.span # set text "\\(|D|:\\)"
@@ -257,6 +245,7 @@ setup window = void $ do
                                card1 = intSize
                                card2 = scopeSize - intSize
                                card3 = rangeSize - intSize
+                               prop = (fromIntegral card1) / (fromIntegral (card1+card3))
                                interpScope = [x | x <- [0..card1 - 1]] ++ [x | x <- [card1 .. (card1 + card2) - 1]]
                                interpRange = [x | x <- [0..card1 - 1]] ++ [x | x <- [(card1 + card2) .. (card1 + card2 + card3) - 1]]
                                interpretation = I interpRange interpScope
@@ -270,7 +259,6 @@ setup window = void $ do
                                                 False -> case (mode, modifier) of
                                                              (WR, False) -> do
                                                                 let formula = Q 0 WR k m
-                                                                    prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                 v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                 let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                     exVal = (show $ valWR (fromIntegral k) (fromIntegral m) prop)
@@ -280,63 +268,54 @@ setup window = void $ do
                                                                           False -> element display # set UI.text "Can't select that many elements without repetition!"
                                                                           True -> do
                                                                               let formula = Q 0 WOR k m
-                                                                                  prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                               v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                               let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                                   exVal = (show $ valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop)
                                                                               element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
                                                              (BC_L, False) -> do
                                                                let formula = Q 0 BC_L k m
-                                                                   prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                    exVal = (show $ valBC_L (fromIntegral k) (fromIntegral m) prop)
                                                                element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
                                                              (BC_G, False) -> do
                                                                 let formula = Q 0 BC_G k m
-                                                                    prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                 v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                 let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                     exVal = (show $ valBC_G (fromIntegral k) (fromIntegral m) prop)
                                                                 element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
                                                              (BC_H, False) -> do
                                                                  let formula = Q 0 BC_H k m
-                                                                     prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                  v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                  let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                      exVal = (show $ valBC_H (fromIntegral k) (fromIntegral m) prop)
                                                                  element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
                                                              (WR, True) -> do
                                                                 let formula = Q n WR k m
-                                                                    prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                 v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
                                                                 let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                     exVal = show $ exValW (valWR (fromIntegral k) (fromIntegral m) prop) n
                                                                 element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
                                                              (WOR, True) -> do
                                                                    let formula = Q n WOR k m
-                                                                       prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                    v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
                                                                    let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                        exVal = show $ exValW (valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop) n
                                                                    element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
                                                              (BC_L, True) -> do
                                                                    let formula = Q n BC_L k m
-                                                                       prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                    v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
                                                                    let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                        exVal = show $ exValW (valBC_L (fromIntegral k) (fromIntegral m) prop) n
                                                                    element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
                                                              (BC_G, True) -> do
                                                                    let formula = Q n BC_G k m
-                                                                       prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                    v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
                                                                    let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                        exVal = show $ exValW (valBC_G (fromIntegral k) (fromIntegral m) prop) n
                                                                    element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
                                                              (BC_H, True) -> do
                                                                    let formula = Q n BC_H k m
-                                                                       prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                    v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
                                                                    let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                        exVal = show $ exValW (valBC_H (fromIntegral k) (fromIntegral m) prop) n
@@ -388,20 +367,6 @@ setup window = void $ do
                                 element text_field_k # set text "\\(s:\\)"
                                 element text_field_m # set text "\\(t:\\)"
                                 typeset
-
-
-{-----------------------------------------------------------------------------
-   Dropdown menu
-------------------------------------------------------------------------------}
-selection :: UI (Element)
-selection =  UI.select
-       # set style [("display","inline-block"), ("width", "200px"), ("height", "200px")]
-       #+ [UI.option # set value "WR"
-                     #+ [UI.div # set text "\\[\\Pi^k_m x . S(x)\\]"
-                              # set style [("width", "200px"), ("height", "200px")]
-                        ]
-                     # set style [("width", "200px"), ("height", "200px")]
-       ]
 
 
 {-----------------------------------------------------------------------------
