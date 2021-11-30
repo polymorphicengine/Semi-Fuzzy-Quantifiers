@@ -7,11 +7,12 @@ import Control.Monad
 
 import Data.Maybe
 
-data Mode = WR | WOR | BC_L | BC_G deriving (Eq,Show)
+data Mode = WR | WOR | BC_L | BC_G | BC_H deriving (Eq,Show)
 
 type Elem = Int
 
-data Formula = Bot | P Elem | Q {mode :: Mode
+data Formula = Bot | P Elem | Q {modifier :: Int
+                                ,mode :: Mode
                                 ,param1 :: Int
                                 ,param2 :: Int
                                 } deriving Eq
@@ -29,7 +30,7 @@ data GameState = GS [Formula] [Formula] | Stop deriving (Eq, Show)
 
 instance Show Formula where
   show (P p) = show p
-  show (Q mode k m) = show mode ++ "^" ++ show k ++ "_" ++ show m
+  show (Q _ mode k m) = show mode ++ "^" ++ show k ++ "_" ++ show m
   show Bot = "Bot"
 
 
@@ -83,7 +84,7 @@ substitute = map P
 expandFormula :: Domain -> Interpretation -> Formula -> IO [GameState]
 expandFormula _ _ Bot = error "Can't expand bot"
 expandFormula _ _ (P _) = error "Can't be called on atoms"
-expandFormula d i (Q mode k m) = case mode of
+expandFormula d i (Q _ mode k m) = case mode of
                                         WR -> do
                                             is <- drawWR d i (k+m)
                                             let subs = genSubsetsKM k is
@@ -106,17 +107,46 @@ expandFormula d i (Q mode k m) = case mode of
                                               gameState = GS (replicate m Bot) myFormulas
                                               val = (fromIntegral k) - (fromIntegral $ m+k)*(proportion i)
                                           return $ if val <= 0 then [GS [] []] else if val <= 1 then [gameState] else [Stop]
+                                        BC_H -> do
+                                          let risk1 = blindChoiceRisk (2*k) 0 0 (k-m) (proportion i)
+                                              risk2 = blindChoiceRisk 0 (k+m) (2*k) 0 (proportion i)
+                                          cs <- drawWR d i (2*k)
+                                          case risk1 <= 0 of
+                                            True -> case risk2 <= 0 of
+                                                        True -> return [GS [] []]
+                                                        False -> return $ if risk2 <= 1 then [GS (replicate (k+m) Bot ) (substitute cs)] else [Stop]
+                                            False -> case risk1 <= risk2 of
+                                                        True -> return $ if risk2 <= 1 then [GS (replicate (k+m) Bot ) (substitute cs)] else [Stop]
+                                                        False -> return $ if risk1 <= 1 then [GS (substitute cs) (replicate (k-m) Bot )] else [Stop]
+
+
 
 
 riskGS :: Interpretation -> GameState -> Double
-riskGS i g@(GS us is) = myVal - yourVal
-                       where myVal = sum $ map (\p -> atomRisk i p) is
-                             yourVal = sum $ map (\p -> atomRisk i p) us
+riskGS i g@(GS us is) = myRisk - yourRisk
+                       where myRisk = sum $ map (\p -> atomRisk i p) is
+                             yourRisk = sum $ map (\p -> atomRisk i p) us
 riskGS _ Stop = 1 -- limited liability
 
 
 play :: Formula -> Domain -> Interpretation -> IO Double
 play f d i = expandFormula d i f >>= \gss -> return $ (minimum $ map (\gs -> riskGS i gs) gss)
+
+playWGeneric :: Double -> Formula -> Domain -> Interpretation -> IO Double
+playWGeneric value f@(Q n mode k m) d i | n == 0 = play f d i
+                                        | otherwise = case (fromIntegral $ n+1)*(1 - value) - (fromIntegral n) <= 0 of
+                                                      True -> return 0
+                                                      False -> do
+                                                           gameStatess <- sequence $ map (\f -> expandFormula d i f) (replicate (n+1) (Q 0 mode k m))
+                                                           let gameRisks = map (\gss -> minimum $ map (\gs -> riskGS i gs) gss) gameStatess
+                                                           return $ sum gameRisks - (fromIntegral n)
+
+playW :: Formula -> Domain -> Interpretation -> IO Double
+playW f@(Q n WR k m) d i = playWGeneric (valWR (fromIntegral k) (fromIntegral m) (proportion i)) f d i
+playW f@(Q n WOR k m) d@(Dom size) i = playWGeneric (valWOR (fromIntegral size) (fromIntegral k) (fromIntegral m) (proportion i)) f d i
+playW f@(Q n BC_L k m) d i = playWGeneric (valBC_L (fromIntegral k) (fromIntegral m) (proportion i)) f d i
+playW f@(Q n BC_G k m) d i = playWGeneric (valBC_G (fromIntegral k) (fromIntegral m) (proportion i)) f d i
+playW f@(Q n BC_H k m) d i = playWGeneric (valBC_H (fromIntegral k) (fromIntegral m) (proportion i)) f d i
 
 --
 
@@ -146,3 +176,17 @@ valBC_L k m prop = min 1 (max 0 (1+(fromIntegral k)-(fromIntegral $ m+k)*prop))
 
 valBC_G :: Integer -> Integer -> Double -> Double
 valBC_G k m prop = min 1 (max 0 (1-(fromIntegral k)+(fromIntegral $ m+k)*prop))
+
+valBC_H :: Integer -> Integer -> Double -> Double
+valBC_H k m prop = min exValG exValL
+                where exValG = valBC_G (fromIntegral $ k-m) (fromIntegral $ k + m) prop
+                      exValL = valBC_L (fromIntegral $ k+m) (fromIntegral $ k - m) prop
+
+
+--
+
+exValW :: Double -> Int -> Double
+exValW val n = 1 - (max 0 ((1-val)*(fromIntegral $ n+1) - (fromIntegral $ n)))
+
+blindChoiceRisk :: Int -> Int -> Int -> Int -> Double -> Double
+blindChoiceRisk r s u v prop = (fromIntegral v) - (fromIntegral s) + (fromIntegral $ u-r)*(1-prop)

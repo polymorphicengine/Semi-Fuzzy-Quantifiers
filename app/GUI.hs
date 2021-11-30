@@ -39,6 +39,10 @@ setup window = void $ do
 
     bcG_check <- UI.input # set UI.type_ "checkbox"
 
+    bcH_check <- UI.input # set UI.type_ "checkbox"
+
+    w_check <- UI.input # set UI.type_ "checkbox"
+
     wr_input <- UI.label #+ [element wr_check,
                               UI.span # set text "\\( \\Pi^k_m \\)"
                              ]
@@ -54,6 +58,15 @@ setup window = void $ do
     bcG_input <- UI.label #+ [element bcG_check,
                              UI.span # set text "\\( G^k_m \\)"
                             ]
+
+    bcH_input <- UI.label #+ [element bcH_check,
+                             UI.span # set text "\\( H^s_t \\)"
+                            ]
+
+    w_input <- UI.label #+ [element w_check,
+                             UI.span # set text "\\( W_n \\)"
+                            ]
+
 
     tooltipContainer <- UI.div #. "tooltip"
     tooltipstyle <- (UI.mkElement "style") # set text ".tooltip {position: relative;display: inline-block;} .tooltip .tooltiptext { visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; padding: 5px 0; border-radius: 6px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;} .tooltip:hover .tooltiptext {visibility: visible;opacity: 1;}"
@@ -91,6 +104,10 @@ setup window = void $ do
 
     field_m          <- UI.input
                             # set style [("width","20%"), ("text-align", "center")]
+
+    field_n          <- UI.input
+                            # set style [("width","20%"), ("text-align", "center")]
+
     field_samplesize <- UI.input
                             # set style [("width","50%"),("text-align","center")]
 
@@ -114,12 +131,13 @@ setup window = void $ do
     text_field_m            <- UI.span # set text "\\(m:\\)"
     -- tooltip_m <- UI.span #. "tooltiptext" # set text "Enter a non-negative integer"
 
+    text_field_n            <- UI.span # set text "\\(n:\\)"
+
     text_field_samplesize   <- UI.span # set text "Sample size:"
 
     text_field_scope        <- UI.span # set text "\\( | S | :\\)"
 
     text_field_int          <- UI.span # set text "\\( | R \\cap S | :\\)"
-
 
     text_field_range        <- UI.span # set text "\\( | R | :\\)"
 
@@ -135,14 +153,15 @@ setup window = void $ do
                        row [
                             column [
                                    grid [
-                                           [element wr_input, element wor_input],
-                                           [element bcL_input, element bcG_input]
+                                           [element wr_input, element wor_input, element w_input],
+                                           [element bcL_input, element bcG_input, element bcH_input]
                                    ] # set style [
                                           ("padding-left", "47px"), ("padding-top", "7px")
                                           ],
                                    grid [
                                            [element text_field_k, element field_k],
-                                           [element text_field_m, element field_m]
+                                           [element text_field_m, element field_m],
+                                           [element text_field_n, element field_n]
                                         ] # set style [
                                           ("text-align", "center"),
                                           ("padding-top", "22px"),
@@ -194,6 +213,7 @@ setup window = void $ do
                        domain_size' <- field_domain # get UI.value
                        k' <- field_k # get UI.value
                        m' <- field_m # get UI.value
+                       n' <- field_n # get UI.value
                        samplesize' <- field_samplesize # get UI.value
                        scopeSize' <- field_scopeSize # get UI.value
                        intSize' <- field_intSize # get UI.value
@@ -203,28 +223,33 @@ setup window = void $ do
                        modeWOR <- wor_check # get UI.checked
                        modeBCL <- bcL_check # get UI.checked
                        modeBCG <- bcG_check # get UI.checked
+                       modeHCG <- bcH_check # get UI.checked
+                       modifier <- w_check # get UI.checked
 
-                       let mode = case (modeWR,modeWOR,modeBCL,modeBCG) of
-                                          (True,False,False,False) -> WR
-                                          (False,True,False,False) -> WOR
-                                          (False,False,True,False) -> BC_L
-                                          (False,False,False,True) -> BC_G
+                       let mode = case (modeWR,modeWOR,modeBCL,modeBCG,modeHCG) of
+                                          (True,False,False,False,False) -> WR
+                                          (False,True,False,False,False) -> WOR
+                                          (False,False,True,False,False) -> BC_L
+                                          (False,False,False,True,False) -> BC_G
+                                          (False,False,False,False,True) -> BC_H
                                           _ -> WR
 
                        let may_domain_size = readMaybe domain_size'
                            may_k = readMaybe k'
                            may_m = readMaybe m'
+                           may_n = readMaybe n'
                            may_samplesize = readMaybe samplesize'
                            may_scopeSize = readMaybe scopeSize'
                            may_intSize = readMaybe intSize'
                            may_rangeSize = readMaybe rangeSize'
 
-                       case elem Nothing [may_domain_size, may_k, may_m, may_samplesize, may_scopeSize, may_intSize, may_rangeSize] of
+                       case elem Nothing [may_domain_size, may_k, may_m, may_samplesize, may_scopeSize, may_intSize, may_rangeSize, may_n] of
                          True -> element display # set UI.text "Please only enter non negative integers"
                          False -> do
                            let domain_size = strip may_domain_size
                                k = strip may_k
                                m = strip may_m
+                               n = strip may_n
                                samplesize = strip may_samplesize
                                scopeSize = strip may_scopeSize
                                intSize = strip may_intSize
@@ -242,46 +267,128 @@ setup window = void $ do
                                     False -> element display # set UI.text "The sum of the cardinalities exceeds the size of the domain!"
                                     True -> case card1 + card3 == 0 of
                                                 True -> element display # set UI.text "Range should not be falsum!"
-                                                False -> case mode of
-                                                             WR -> do
-                                                                let formula = Q WR k m
+                                                False -> case (mode, modifier) of
+                                                             (WR, False) -> do
+                                                                let formula = Q 0 WR k m
                                                                     prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                 v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                 let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                     exVal = (show $ valWR (fromIntegral k) (fromIntegral m) prop)
                                                                 element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
 
-                                                             WOR -> case k+m <= domain_size of
+                                                             (WOR, False) -> case k+m <= domain_size of
                                                                           False -> element display # set UI.text "Can't select that many elements without repetition!"
                                                                           True -> do
-                                                                              let formula = Q WOR k m
+                                                                              let formula = Q 0 WOR k m
                                                                                   prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                               v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                               let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                                   exVal = (show $ valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop)
                                                                               element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
-                                                             BC_L -> do
-                                                               let formula = Q BC_L k m
+                                                             (BC_L, False) -> do
+                                                               let formula = Q 0 BC_L k m
                                                                    prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                    exVal = (show $ valBC_L (fromIntegral k) (fromIntegral m) prop)
                                                                element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
-                                                             BC_G -> do
-                                                                let formula = Q BC_G k m 
+                                                             (BC_G, False) -> do
+                                                                let formula = Q 0 BC_G k m
                                                                     prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
                                                                 v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
                                                                 let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                     exVal = (show $ valBC_G (fromIntegral k) (fromIntegral m) prop)
                                                                 element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
+                                                             (BC_H, False) -> do
+                                                                 let formula = Q 0 BC_H k m
+                                                                     prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                 v <- liftIO $ fmap sum $ replicateM samplesize (play formula (Dom domain_size) interpretation)
+                                                                 let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                     exVal = (show $ valBC_H (fromIntegral k) (fromIntegral m) prop)
+                                                                 element display # set UI.text ("The approximated value is: " ++ appVal ++ "\n The exact value is: " ++ exVal)
+                                                             (WR, True) -> do
+                                                                let formula = Q n WR k m
+                                                                    prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
+                                                                let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                    exVal = show $ exValW (valWR (fromIntegral k) (fromIntegral m) prop) n
+                                                                element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
+                                                             (WOR, True) -> do
+                                                                   let formula = Q n WOR k m
+                                                                       prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                   v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
+                                                                   let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                       exVal = show $ exValW (valWOR (fromIntegral domain_size) (fromIntegral k) (fromIntegral m) prop) n
+                                                                   element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
+                                                             (BC_L, True) -> do
+                                                                   let formula = Q n BC_L k m
+                                                                       prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                   v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
+                                                                   let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                       exVal = show $ exValW (valBC_L (fromIntegral k) (fromIntegral m) prop) n
+                                                                   element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
+                                                             (BC_G, True) -> do
+                                                                   let formula = Q n BC_G k m
+                                                                       prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                   v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
+                                                                   let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                       exVal = show $ exValW (valBC_G (fromIntegral k) (fromIntegral m) prop) n
+                                                                   element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
+                                                             (BC_H, True) -> do
+                                                                   let formula = Q n BC_H k m
+                                                                       prop = (fromIntegral card1) / (fromIntegral (card1+card3)) :: Double
+                                                                   v <- liftIO $ fmap sum $ replicateM samplesize (playW formula (Dom domain_size) interpretation)
+                                                                   let appVal = (show $ 1 - v / (fromIntegral samplesize))
+                                                                       exVal = show $ exValW (valBC_H (fromIntegral k) (fromIntegral m) prop) n
+                                                                   element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
 
     on UI.click button $ const $ startGameFunction
 
     on UI.checkedChange wr_check $ const $ do
                                 element wor_check # set UI.checked False
+                                element bcL_check # set UI.checked False
+                                element bcG_check # set UI.checked False
+                                element bcH_check # set UI.checked False
+                                element text_field_k # set text "\\(k:\\)"
+                                element text_field_m # set text "\\(m:\\)"
+                                typeset
 
     on UI.checkedChange wor_check $ const $ do
                                 element wr_check # set UI.checked False
+                                element bcL_check # set UI.checked False
+                                element bcG_check # set UI.checked False
+                                element bcH_check # set UI.checked False
+                                element text_field_k # set text "\\(j:\\)"
+                                element text_field_m # set text "\\(k:\\)"
+                                typeset
+
+    on UI.checkedChange bcG_check $ const $ do
+                                element wor_check # set UI.checked False
+                                element bcL_check # set UI.checked False
+                                element wr_check # set UI.checked False
+                                element bcH_check # set UI.checked False
+                                element text_field_k # set text "\\(k:\\)"
+                                element text_field_m # set text "\\(m:\\)"
+                                typeset
+
+    on UI.checkedChange bcL_check $ const $ do
+                                element wr_check # set UI.checked False
+                                element wor_check # set UI.checked False
+                                element bcG_check # set UI.checked False
+                                element bcH_check # set UI.checked False
+                                element text_field_k # set text "\\(k:\\)"
+                                element text_field_m # set text "\\(m:\\)"
+                                typeset
+
+    on UI.checkedChange bcH_check $ const $ do
+                                element wr_check # set UI.checked False
+                                element wor_check # set UI.checked False
+                                element bcG_check # set UI.checked False
+                                element bcL_check # set UI.checked False
+                                element text_field_k # set text "\\(s:\\)"
+                                element text_field_m # set text "\\(t:\\)"
+                                typeset
+
 
 {-----------------------------------------------------------------------------
    Dropdown menu
@@ -304,3 +411,6 @@ selection =  UI.select
 strip :: Maybe a -> a
 strip (Just x) = x
 strip Nothing = error "Something went wrong"
+
+typeset :: UI ()
+typeset = runFunction $ ffi "MathJax.typeset()"
