@@ -11,8 +11,12 @@ import GUI
 
 -- main :: IO ()
 -- main = do
---   xs <- drawWR (Dom 10) (I [0..9] []) 10
---   putStrLn $ show xs
+--   let rule = [[D 0 0 0 0],[D 0 0 0 1, D 3 0 0 1]]
+--       mode = BC_Rule rule
+--       dom = Dom 1000
+--       i = I [0..1000] [0..790]
+--   v <- playBCMany 10000 rule dom i
+--   putStrLn $ show v ++ "\n Exact: " ++ (show $ valBC_L (fromIntegral 2) (fromIntegral 1) (proportion i))
 
 main :: IO ()
 main = startGUI defaultConfig setup

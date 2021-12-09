@@ -7,7 +7,7 @@ import Control.Monad
 
 import Data.Maybe
 
-data Mode = WR | WOR | BC_L | BC_G | BC_H deriving (Eq,Show)
+data Mode = WR | WOR | BC_L | BC_G | BC_H | BC_Rule Rule deriving (Eq,Show)
 
 type Elem = Int
 
@@ -120,8 +120,6 @@ expandFormula d i (Q _ mode k m) = case mode of
                                                         False -> return $ if risk1 <= 1 then [GS (substitute cs) (replicate (k-m) Bot )] else [Stop]
 
 
-
-
 riskGS :: Interpretation -> GameState -> Double
 riskGS i g@(GS us is) = myRisk - yourRisk
                        where myRisk = sum $ map (\p -> atomRisk i p) is
@@ -190,3 +188,55 @@ exValW val n = 1 - (max 0 ((1-val)*(fromIntegral $ n+1) - (fromIntegral $ n)))
 
 blindChoiceRisk :: Int -> Int -> Int -> Int -> Double -> Double
 blindChoiceRisk r s u v prop = (fromIntegral v) - (fromIntegral s) + (fromIntegral $ u-r)*(1-prop)
+
+
+-----
+
+
+data Defense = D {yourFs :: Int
+                 ,yourBots :: Int
+                 ,myFs :: Int
+                 ,myBots :: Int
+                 } deriving (Eq,Show)
+
+type Attack = [Defense]
+
+type Rule = [Attack]
+
+defenseRisk :: Defense -> Double -> Double
+defenseRisk (D r s u v) prop = (fromIntegral v) - (fromIntegral s) + (fromIntegral $ u-r)*(1-prop)
+
+chooseAttack :: Rule -> Interpretation -> Defense
+chooseAttack rule i = [d | d <- defenses, defenseRisk d prop == maximum risks]!!0
+                    where defenses = map (\a -> chooseDefense a i) rule
+                          risks = map (\d -> defenseRisk d prop) defenses
+                          prop = proportion i
+
+chooseDefense :: Attack -> Interpretation -> Defense
+chooseDefense att i = [d | d <- att, defenseRisk d prop == minimum risks]!!0
+                     where risks = map (\d -> defenseRisk d prop) att
+                           prop = proportion i
+
+toGameState :: Defense -> [Formula] -> [Formula] -> GameState
+toGameState (D _ s _ v) yourFs myFs = GS (yourFs ++ replicate s Bot) (myFs ++ replicate v Bot)
+
+genericBC :: Defense -> Domain -> Interpretation -> IO GameState
+genericBC def d i = do
+                let myAmount = myFs def
+                    yourAmount = yourFs def
+                is <- drawWR d i myAmount
+                us <- drawWR d i yourAmount
+                let myForms = substitute is
+                    yourForms = substitute us
+                return $ toGameState def yourForms myForms
+
+playBC :: Defense -> Domain -> Interpretation -> IO Double
+playBC def d i = do
+                gs <- genericBC def d i
+                return $ riskGS i gs
+
+playBCMany :: Int -> Rule -> Domain -> Interpretation -> IO Double
+playBCMany n r d i = do
+                let def = chooseAttack r i
+                v <- fmap sum $ replicateM n (playBC def d i)
+                return $ 1 - v / (fromIntegral n)
