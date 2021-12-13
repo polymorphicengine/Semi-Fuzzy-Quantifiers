@@ -1,7 +1,8 @@
 module GUI where
 
-import Control.Monad (void, replicateM)
+import Control.Monad (void, replicateM, zipWithM)
 import Data.Maybe
+import Data.IORef
 import qualified Data.Map as Map
 import Text.Printf
 --import Safe          (readMay)
@@ -130,13 +131,13 @@ setup window = void $ do
     text_field_range        <- UI.span # set text "\\( | R | :\\)"
 
 
+    (rule,ref) <- mkRule
 {-----------------------------------------------------------------------------
     Layout
 ------------------------------------------------------------------------------}
 
     getBody window #+ [element mathjaxScript1,
                        element mathjaxScript2,
-                       element tooltipstyle,
                        UI.p # set text "      Semi-Fuzzy Playground" # set style [("color", "blue"), ("text-align", "center")],
                        row [
                             column [
@@ -170,7 +171,7 @@ setup window = void $ do
                                           ("padding-top", "5px")
                                           ]
                                    ]
-                            ]# set style [
+                            ] # set style [
                               ("background","rgba(11, 127, 171,0.4)"),
                               ("padding-bottom", "5px")
                               ] ,
@@ -184,7 +185,8 @@ setup window = void $ do
                                   ("padding-top", "15px")
                                 ],
                             row [element display] # set style [
-                                  ("text-align", "center"), ("padding-top", "15px"), ("color", "blue")]
+                                  ("text-align", "center"), ("padding-top", "15px"), ("color", "blue")],
+                            row [rule]
                        ] # set style [
                            ("background-color","lightskyblue"),
                            ("text-align", "right"),
@@ -211,10 +213,10 @@ setup window = void $ do
                        modeWOR <- wor_check # get UI.checked
                        modeBCL <- bcL_check # get UI.checked
                        modeBCG <- bcG_check # get UI.checked
-                       modeHCG <- bcH_check # get UI.checked
+                       modeBCH <- bcH_check # get UI.checked
                        modifier <- w_check # get UI.checked
 
-                       let mode = case (modeWR,modeWOR,modeBCL,modeBCG,modeHCG) of
+                       let mode = case (modeWR,modeWOR,modeBCL,modeBCG,modeBCH) of
                                           (True,False,False,False,False) -> WR
                                           (False,True,False,False,False) -> WOR
                                           (False,False,True,False,False) -> BC_L
@@ -321,7 +323,9 @@ setup window = void $ do
                                                                        exVal = show $ exValW (valBC_H (fromIntegral k) (fromIntegral m) prop) n
                                                                    element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
 
-    on UI.click button $ const $ startGameFunction
+    on UI.click button $ const $ do
+                            r <- getRule ref
+                            element display # set text (show r)--startGameFunction
 
     on UI.checkedChange wr_check $ const $ do
                                 element wor_check # set UI.checked False
@@ -379,3 +383,78 @@ strip Nothing = error "Something went wrong"
 
 typeset :: UI ()
 typeset = runFunction $ ffi "MathJax.typeset()"
+
+mkDefenseUI :: Int -> Int -> UI Element
+mkDefenseUI n m = do
+            r  <- UI.input # set UI.id_ ("r" ++ show n ++ "," ++ show m) # set style [("width","20%"),("text-align","center")]
+            s  <- UI.input # set UI.id_ ("s" ++ show n ++ "," ++ show m) # set style [("width","20%"),("text-align","center")]
+            u  <- UI.input # set UI.id_ ("u" ++ show n ++ "," ++ show m) # set style [("width","20%"),("text-align","center")]
+            v  <- UI.input # set UI.id_ ("v" ++ show n ++ "," ++ show m) # set style [("width","20%"),("text-align","center")]
+            row [UI.label #+ [UI.span # set text ("\\(r_{" ++ show n ++ "," ++ show m ++ "} : \\)"), element r]
+                ,UI.label #+ [UI.span # set text ("\\(s_{" ++ show n ++ "," ++ show m ++ "} : \\)"), element s]
+                ,UI.label #+ [UI.span # set text ("\\(u_{" ++ show n ++ "," ++ show m ++ "} : \\)"), element u]
+                ,UI.label #+ [UI.span # set text ("\\(v_{" ++ show n ++ "," ++ show m ++ "} : \\)"), element v]
+                ] # set UI.id_ ("defense" ++ show n ++ "," ++ show m)
+
+getDefense :: Int -> Int -> UI Defense
+getDefense n m = do
+              w <- askWindow
+              r' <- fmap strip $ getElementById w ("r" ++ show n ++ "," ++ show m)
+              s' <- fmap strip $ getElementById w ("s" ++ show n ++ "," ++ show m)
+              u' <- fmap strip $ getElementById w ("u" ++ show n ++ "," ++ show m)
+              v' <- fmap strip $ getElementById w ("v" ++ show n ++ "," ++ show m)
+              r <- fmap read $ r' # get UI.value
+              s <- fmap read $ s' # get UI.value
+              u <- fmap read $ u' # get UI.value
+              v <- fmap read $ v' # get UI.value
+              return $ D r s u v
+
+addDefense :: Int -> Int -> UI ()
+addDefense n m = do
+            w <- askWindow
+            att <- fmap strip $ getElementById w ("attack" ++ show n)
+            def <- mkDefenseUI n m
+            void $ element att #+ [element def]
+
+mkAttack :: Int -> UI (UI Element , IORef Int)
+mkAttack n = do
+  plusButton <- UI.button # set UI.text "+"
+  ref <- liftIO $ newIORef 1
+  on UI.click plusButton $ \_ -> do
+        i <- liftIO $ readIORef ref
+        addDefense n i
+        liftIO $ modifyIORef ref (+1)
+        typeset
+  return (row [element plusButton, UI.div # set UI.id_ ("attack" ++ show n)], ref)
+
+getAttack :: Int -> IORef Int -> UI Attack
+getAttack n ref = do
+      m <- liftIO $ readIORef ref
+      liftIO $ putStrLn ("m: " ++ show m ++ "\n n: " ++ show n)
+      zipWithM getDefense (replicate (m-1) n) [1..(m-1)]
+
+addAttack :: Int -> UI (IORef Int)
+addAttack n = do
+        w <- askWindow
+        rule <- fmap strip $ getElementById w "rule"
+        (att,ref) <- mkAttack n
+        element rule #+ [att]
+        return ref
+
+mkRule :: UI (UI Element, IORef [IORef Int])
+mkRule = do
+  plusButton <- UI.button # set UI.text "+"
+  attsRef <- liftIO $ newIORef []
+  on UI.click plusButton $ \_ -> do
+        atts <- liftIO $ readIORef attsRef
+        let i = length atts + 1
+        ref <- addAttack i
+        liftIO $ modifyIORef attsRef (\x -> x ++ [ref])
+        typeset
+  return (row [element plusButton, UI.div # set UI.id_ "rule"], attsRef)
+
+
+getRule :: IORef [IORef Int] -> UI Rule
+getRule ref = do
+          refs <- liftIO $ readIORef ref
+          zipWithM getAttack [1..length refs] refs
