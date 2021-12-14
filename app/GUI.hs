@@ -43,6 +43,7 @@ setup window = void $ do
     bcG_check <- UI.input # set UI.type_ "checkbox"
     bcH_check <- UI.input # set UI.type_ "checkbox"
     w_check <- UI.input # set UI.type_ "checkbox"
+    rule_check <- UI.input # set UI.type_ "checkbox"
 
     wr_input <- UI.label #+ [element wr_check,
                               UI.span # set text "\\( \\Pi^k_m \\)"
@@ -62,7 +63,9 @@ setup window = void $ do
     w_input <- UI.label #+ [element w_check,
                              UI.span # set text "\\( W_n \\)"
                             ]
-
+    rule_input <- UI.label #+ [element rule_check,
+                             UI.span # set text "\\( R \\)"
+                            ]
 
     tooltipContainer <- UI.div #. "tooltip"
     tooltipstyle <- (UI.mkElement "style") # set text ".tooltip {position: relative;display: inline-block;} .tooltip .tooltiptext { visibility: hidden; width: 120px; background-color: #555; color: #fff; text-align: center; padding: 5px 0; border-radius: 6px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;} .tooltip:hover .tooltiptext {visibility: visible;opacity: 1;}"
@@ -142,8 +145,9 @@ setup window = void $ do
                        row [
                             column [
                                    grid [
-                                           [element wr_input, element wor_input, element w_input],
-                                           [element bcL_input, element bcG_input, element bcH_input]
+                                           [element wr_input, element wor_input, element rule_input],
+                                           [element bcL_input, element bcG_input, element bcH_input],
+                                           [element w_input]
                                    ] # set style [
                                           ("padding-left", "47px"), ("padding-top", "7px")
                                           ],
@@ -215,13 +219,15 @@ setup window = void $ do
                        modeBCG <- bcG_check # get UI.checked
                        modeBCH <- bcH_check # get UI.checked
                        modifier <- w_check # get UI.checked
+                       modeRule <- rule_check # get UI.checked
 
-                       let mode = case (modeWR,modeWOR,modeBCL,modeBCG,modeBCH) of
-                                          (True,False,False,False,False) -> WR
-                                          (False,True,False,False,False) -> WOR
-                                          (False,False,True,False,False) -> BC_L
-                                          (False,False,False,True,False) -> BC_G
-                                          (False,False,False,False,True) -> BC_H
+                       let mode = case (modeWR,modeWOR,modeBCL,modeBCG,modeBCH,modeRule) of
+                                          (True,False,False,False,False,False) -> WR
+                                          (False,True,False,False,False,False) -> WOR
+                                          (False,False,True,False,False,False) -> BC_L
+                                          (False,False,False,True,False,False) -> BC_G
+                                          (False,False,False,False,True,False) -> BC_H
+                                          (False,False,False,False,False,True) -> BC_Rule
                                           _ -> WR
 
                        let may_domain_size = readMaybe domain_size'
@@ -322,16 +328,24 @@ setup window = void $ do
                                                                    let appVal = (show $ 1 - v / (fromIntegral samplesize))
                                                                        exVal = show $ exValW (valBC_H (fromIntegral k) (fromIntegral m) prop) n
                                                                    element display # set UI.text ("The approximated value is: " ++ appVal  ++ "\n The exact value is: " ++ exVal)
-
-    on UI.click button $ const $ do
-                            r <- getRule ref
-                            element display # set text (show r)--startGameFunction
+                                                             (BC_Rule, False) -> do
+                                                                   rule <- getRule ref
+                                                                   v <- liftIO $ playBCMany samplesize rule (Dom domain_size) interpretation
+                                                                   let exVal = show $ ruleValue rule prop
+                                                                   element display # set UI.text ("The approximated value is: " ++ show v ++ "\n The exact value is: " ++ exVal)
+                                                             (BC_Rule, True) -> do
+                                                                   rule <- getRule ref
+                                                                   v <- liftIO $ playWBCMany samplesize n rule (Dom domain_size) interpretation
+                                                                   let exVal = show $ exValW (ruleValue rule prop) n
+                                                                   element display # set UI.text ("The approximated value is: " ++ show v ++ "\n The exact value is: " ++ exVal)
+    on UI.click button $ const $ startGameFunction
 
     on UI.checkedChange wr_check $ const $ do
                                 element wor_check # set UI.checked False
                                 element bcL_check # set UI.checked False
                                 element bcG_check # set UI.checked False
                                 element bcH_check # set UI.checked False
+                                element rule_check # set UI.checked False
                                 element text_field_k # set text "\\(k:\\)"
                                 element text_field_m # set text "\\(m:\\)"
                                 typeset
@@ -341,6 +355,7 @@ setup window = void $ do
                                 element bcL_check # set UI.checked False
                                 element bcG_check # set UI.checked False
                                 element bcH_check # set UI.checked False
+                                element rule_check # set UI.checked False
                                 element text_field_k # set text "\\(j:\\)"
                                 element text_field_m # set text "\\(k:\\)"
                                 typeset
@@ -350,6 +365,7 @@ setup window = void $ do
                                 element bcL_check # set UI.checked False
                                 element wr_check # set UI.checked False
                                 element bcH_check # set UI.checked False
+                                element rule_check # set UI.checked False
                                 element text_field_k # set text "\\(k:\\)"
                                 element text_field_m # set text "\\(m:\\)"
                                 typeset
@@ -359,6 +375,7 @@ setup window = void $ do
                                 element wor_check # set UI.checked False
                                 element bcG_check # set UI.checked False
                                 element bcH_check # set UI.checked False
+                                element rule_check # set UI.checked False
                                 element text_field_k # set text "\\(k:\\)"
                                 element text_field_m # set text "\\(m:\\)"
                                 typeset
@@ -368,6 +385,7 @@ setup window = void $ do
                                 element wor_check # set UI.checked False
                                 element bcG_check # set UI.checked False
                                 element bcL_check # set UI.checked False
+                                element rule_check # set UI.checked False
                                 element text_field_k # set text "\\(s:\\)"
                                 element text_field_m # set text "\\(t:\\)"
                                 typeset
@@ -384,8 +402,12 @@ strip Nothing = error "Something went wrong"
 typeset :: UI ()
 typeset = runFunction $ ffi "MathJax.typeset()"
 
-mkDefenseUI :: Int -> Int -> UI Element
-mkDefenseUI n m = do
+{-----------------------------------------------------------------------------
+   Blind Choice Rule Input
+------------------------------------------------------------------------------}
+
+mkDefense :: Int -> Int -> UI Element
+mkDefense n m = do
             r  <- UI.input # set UI.id_ ("r" ++ show n ++ "," ++ show m) # set style [("width","20%"),("text-align","center")]
             s  <- UI.input # set UI.id_ ("s" ++ show n ++ "," ++ show m) # set style [("width","20%"),("text-align","center")]
             u  <- UI.input # set UI.id_ ("u" ++ show n ++ "," ++ show m) # set style [("width","20%"),("text-align","center")]
@@ -413,7 +435,7 @@ addDefense :: Int -> Int -> UI ()
 addDefense n m = do
             w <- askWindow
             att <- fmap strip $ getElementById w ("attack" ++ show n)
-            def <- mkDefenseUI n m
+            def <- mkDefense n m
             void $ element att #+ [element def]
 
 mkAttack :: Int -> UI (UI Element , IORef Int)
@@ -430,8 +452,7 @@ mkAttack n = do
 getAttack :: Int -> IORef Int -> UI Attack
 getAttack n ref = do
       m <- liftIO $ readIORef ref
-      liftIO $ putStrLn ("m: " ++ show m ++ "\n n: " ++ show n)
-      zipWithM getDefense (replicate (m-1) n) [1..(m-1)]
+      fmap ((D 0 0 0 1):) $ zipWithM getDefense (replicate (m-1) n) [1..(m-1)]
 
 addAttack :: Int -> UI (IORef Int)
 addAttack n = do
@@ -457,4 +478,4 @@ mkRule = do
 getRule :: IORef [IORef Int] -> UI Rule
 getRule ref = do
           refs <- liftIO $ readIORef ref
-          zipWithM getAttack [1..length refs] refs
+          fmap ([D 0 0 0 0]:) $ zipWithM getAttack [1..length refs] refs

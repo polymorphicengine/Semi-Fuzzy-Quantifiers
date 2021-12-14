@@ -7,7 +7,7 @@ import Control.Monad
 
 import Data.Maybe
 
-data Mode = WR | WOR | BC_L | BC_G | BC_H | BC_Rule Rule deriving (Eq,Show)
+data Mode = WR | WOR | BC_L | BC_G | BC_H | BC_Rule deriving (Eq,Show)
 
 type Elem = Int
 
@@ -190,6 +190,7 @@ blindChoiceRisk :: Int -> Int -> Int -> Int -> Double -> Double
 blindChoiceRisk r s u v prop = (fromIntegral v) - (fromIntegral s) + (fromIntegral $ u-r)*(1-prop)
 
 
+
 -----
 
 
@@ -240,3 +241,32 @@ playBCMany n r d i = do
                 let def = chooseAttack r i
                 v <- fmap sum $ replicateM n (playBC def d i)
                 return $ 1 - v / (fromIntegral n)
+
+--
+
+ruleValue :: Rule -> Double -> Double
+ruleValue r prop = minimum $ map (flip attackValue prop) r
+
+attackValue :: Attack -> Double -> Double
+attackValue a prop = maximum $ map (flip defenseValue prop) a
+
+defenseValue :: Defense -> Double -> Double
+defenseValue d prop = 1 - (defenseRisk d prop)
+
+--
+
+playWBC :: Double -> Int -> Defense -> Domain -> Interpretation -> IO Double
+playWBC value n def d i | n == 0 = playBC def d i
+                             | otherwise = case (fromIntegral $ n+1)*(1 - value) - (fromIntegral n) <= 0 of
+                                                      True -> return 0
+                                                      False -> do
+                                                           myValue <- fmap sum $ replicateM (n+1) (playBC def d i)
+                                                           return $ myValue - (fromIntegral n)
+
+
+playWBCMany :: Int -> Int -> Rule -> Domain -> Interpretation -> IO Double
+playWBCMany samplesize n rule d i = do
+                let def = chooseAttack rule i
+                v <- fmap sum $ replicateM samplesize (playWBC value n def d i)
+                return $ 1 - v / (fromIntegral samplesize)
+                where value = ruleValue rule (proportion i)
