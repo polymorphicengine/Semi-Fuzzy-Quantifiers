@@ -130,6 +130,11 @@ riskGS _ Stop = 1 -- limited liability
 play :: Formula -> Domain -> Interpretation -> IO Double
 play f d i = expandFormula d i f >>= \gss -> return $ (minimum $ map (\gs -> riskGS i gs) gss)
 
+playMany :: Int -> Formula -> Domain -> Interpretation -> IO Double
+playMany samplesize f d i = do
+                        v <- fmap sum $ replicateM samplesize (play f d i)
+                        return $ 1 - v / (fromIntegral samplesize)
+
 playWGeneric :: Double -> Formula -> Domain -> Interpretation -> IO Double
 playWGeneric value f@(Q n mode k m) d i | n == 0 = play f d i
                                         | otherwise = case (fromIntegral $ n+1)*(1 - value) - (fromIntegral n) <= 0 of
@@ -146,6 +151,10 @@ playW f@(Q n BC_L k m) d i = playWGeneric (valBC_L (fromIntegral k) (fromIntegra
 playW f@(Q n BC_G k m) d i = playWGeneric (valBC_G (fromIntegral k) (fromIntegral m) (proportion i)) f d i
 playW f@(Q n BC_H k m) d i = playWGeneric (valBC_H (fromIntegral k) (fromIntegral m) (proportion i)) f d i
 
+playWMany :: Int -> Formula -> Domain -> Interpretation -> IO Double
+playWMany samplesize f d i = do
+                        v <- fmap sum $ replicateM samplesize (playW f d i)
+                        return $ 1 - v / (fromIntegral samplesize)
 --
 
 proportion :: Interpretation -> Double
