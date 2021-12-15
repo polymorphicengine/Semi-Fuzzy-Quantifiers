@@ -39,12 +39,10 @@ jobs:
           mkdir dist
           cabal install --install-method=copy --overwrite-policy=always --installdir=dist
    
-    - name: check
-      run: |
-            cd dist
-            ls
+    - name: zip files
+      run: tar cvfj fuzzy.tar dist/*
     
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
-          files: /dist/Semi-Fuzzy-Quantifiers
+          files: fuzzy.tar
