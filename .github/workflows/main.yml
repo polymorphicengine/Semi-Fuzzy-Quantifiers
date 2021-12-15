@@ -38,6 +38,11 @@ jobs:
       run: |
           mkdir dist
           cabal install --install-method=copy --overwrite-policy=always --installdir=dist
+   
+    - name: check
+      run: |
+            cd dist
+            ls
     
     - name: Release
       uses: softprops/action-gh-release@v1
