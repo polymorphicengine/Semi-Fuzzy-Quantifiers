@@ -40,8 +40,13 @@ jobs:
           mkdir dist
           cabal install --install-method=copy --overwrite-policy=always --installdir=dist
    
-    - name: zip files
+    - if: matrix.os /= 'windows-latest'
+      name: zip files
       run: zip fuzzy-${{ runner.os }}.zip dist/*
+    
+    - if: matrix.os == 'windows-latest'
+      name: zip files win
+      run: Compress-Archive -LiteralPath 'dist\' -DestinationPath 'fuzzy-${{ runner.os }}.zip'
     
     - name: Release
       uses: softprops/action-gh-release@v1
