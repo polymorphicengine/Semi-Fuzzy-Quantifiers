@@ -1,4 +1,4 @@
-name: Linux CI
+name: CI
 
 on:
   push:
@@ -41,9 +41,9 @@ jobs:
           cabal install --install-method=copy --overwrite-policy=always --installdir=dist
    
     - name: zip files
-      run: tar cvfj fuzzy.tar dist/*
+      run: zip fuzzy-${{ runner.os }}.zip dist/*
     
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
-          files: fuzzy.tar
+          files: fuzzy-${{ runner.os }}.zip
