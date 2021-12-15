@@ -36,13 +36,6 @@ jobs:
           mkdir dist
           cabal install --install-method=copy --overwrite-policy=always --installdir=dist
     
-    - if: matrix.os == 'windows-latest'
-      name: Set extension to .exe on Windows
-      run: echo "::set-env name=EXT::.exe"
-
-    - name: Set binary path name
-      run: echo "::set-env name=BINARY_PATH::./dist/stan${{ env.EXT }}"
-    
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
