@@ -39,25 +39,25 @@ setup window = void $ do
     rule_check <- mkCheck "rule_check"
 
     wr_input <- UI.label #+ [element wr_check,
-                              UI.span # set text "\\( \\Pi^k_m \\)"
+                              UI.span # set text "\\( \\Pi^k_m \\)" # set style [("color", "darkblue")]
                              ]
     wor_input <- UI.label #+ [element wor_check,
-                             UI.span # set text "\\( \\Pi^{j,k} \\)"
+                             UI.span # set text "\\( \\Pi^{j,k} \\)" # set style [("color", "darkblue")]
                             ]
     bcL_input <- UI.label #+ [element bcL_check,
-                              UI.span # set text "\\( L^k_m \\)"
+                              UI.span # set text "\\( L^k_m \\)" # set style [("color", "darkblue")]
                              ]
     bcG_input <- UI.label #+ [element bcG_check,
-                             UI.span # set text "\\( G^k_m \\)"
+                             UI.span # set text "\\( G^k_m \\)" # set style [("color", "darkblue")]
                             ]
     bcH_input <- UI.label #+ [element bcH_check,
-                             UI.span # set text "\\( H^s_t \\)"
+                             UI.span # set text "\\( H^s_t \\)" # set style [("color", "darkblue")]
                             ]
     w_input <- UI.label #+ [element w_check,
-                             UI.span # set text "\\( W_n \\)"
+                             UI.span # set text "\\( W_n \\)" # set style [("color", "darkblue")]
                             ]
     rule_input <- UI.label #+ [element rule_check,
-                             UI.span # set text "\\( R \\)"
+                             UI.span # set text "\\( R \\)" # set style [("color", "darkblue")]
                             ]
 
 {-----------------------------------------------------------------------------
@@ -98,21 +98,21 @@ setup window = void $ do
      Textfields
  ------------------------------------------------------------------------------}
 
-    text_field_domain       <- UI.span # set text "\\(|D|:\\)"
+    text_field_domain       <- UI.span # set text "\\(|D|:\\)" # set style [("color", "darkblue")]
 
-    text_field_k            <- UI.span # set text "\\(k:\\)"
+    text_field_k            <- UI.span # set text "\\(k:\\)" # set style [("color", "darkblue")]
 
-    text_field_m            <- UI.span # set text "\\(m:\\)"
+    text_field_m            <- UI.span # set text "\\(m:\\)" # set style [("color", "darkblue")]
 
-    text_field_n            <- UI.span # set text "\\(n:\\)"
+    text_field_n            <- UI.span # set text "\\(n:\\)" # set style [("color", "darkblue")]
 
-    text_field_samplesize   <- UI.span # set text "Sample size:"
+    text_field_samplesize   <- UI.span # set text "Sample size:" # set style [("color", "darkblue"), ("font-weight", "bold")]
 
-    text_field_scope        <- UI.span # set text "\\( | S | :\\)"
+    text_field_scope        <- UI.span # set text "\\( | S | :\\)" # set style [("color", "darkblue")]
 
-    text_field_int          <- UI.span # set text "\\( | R \\cap S | :\\)"
+    text_field_int          <- UI.span # set text "\\( | R \\cap S | :\\)" # set style [("color", "darkblue")]
 
-    text_field_range        <- UI.span # set text "\\( | R | :\\)"
+    text_field_range        <- UI.span # set text "\\( | R | :\\)" # set style [("color", "darkblue")]
 
 {-----------------------------------------------------------------------------
     Rule Input
@@ -126,25 +126,36 @@ setup window = void $ do
 
     getBody window #+ [element mathjaxScript1,
                        element mathjaxScript2,
-                       UI.p # set text "      Semi-Fuzzy Playground" # set style [("color", "blue"), ("text-align", "center")],
+                       UI.p # set text "      Semi-Fuzzy Playground" # set style
+                       [("color", "blue"), ("text-align", "center"), ("background","rgba(11, 127, 171,0.2)"),
+                        ("font-size", "12px"),("font-weight", "bold"), ("padding-bottom", "4px"), ("padding-top", "4px")],
                        row [
                             column [
-                                   grid [
-                                           [element wr_input, element wor_input, element rule_input],
-                                           [element bcL_input, element bcG_input, element bcH_input],
-                                           [element w_input]
+                                  grid [
+                                          [element wr_input, element wor_input, element bcH_input],
+                                          [element bcL_input, element bcG_input]
                                    ] # set style [
-                                          ("padding-left", "47px"), ("padding-top", "7px")
-                                          ],
-                                   grid [
-                                           [element text_field_k, element field_k],
-                                           [element text_field_m, element field_m],
-                                           [element text_field_n, element field_n]
-                                        ] # set style [
+                                         ("padding-bottom", "5px"),
+                                         ("padding-left", "89px")
+                                         ]
+                                   ],
+                            column [
+                                  grid [
+                                          [string " ", element w_input],[element rule_input, string " "]
+                                   ] # set style [
+                                         ("padding-left", "7px")
+                                         ]
+                                   ]
+                            ] # set style [("padding-top", "15x")],
+                       row [
+                            column [
+                                  grid [
+                                          [element text_field_k, element field_k],
+                                          [element text_field_m, element field_m],
+                                          [element text_field_n, element field_n]
+                                    ] # set style [
                                           ("text-align", "center"),
-                                          ("padding-top", "22px"),
-                                          ("padding-left", "35px"),
-                                          ("padding-bottom", "5px")
+                                          ("padding-left", "35px")
                                           ]
                                    ],
                             column [
@@ -155,27 +166,27 @@ setup window = void $ do
                                            [element text_field_range, element field_rangeSize]
                                         ]  # set style [
                                           ("text-align", "center"),
-                                          ("padding-left", "35px"),
-                                          ("padding-bottom", "5px"),
+                                          ("padding-left", "29px"),
                                           ("padding-top", "5px")
                                           ]
                                    ]
                             ] # set style [
-                              ("background","rgba(11, 127, 171,0.4)"),
+                              ("padding-top", "5px"),
                               ("padding-bottom", "5px")
                               ] ,
                             UI.hr # set style [("border-top", "1px solid darkblue")],
-                            row [element text_field_samplesize, element field_samplesize] # set style [
-                                  ("padding-top", "5px"),
-                                  ("padding-left", "45px")
+                            row [element text_field_samplesize, string " ", element field_samplesize] # set style [
+                                  ("padding-left", "50px"),
+                                  ("background","rgba(11, 127, 171,0.2)")
                                 ],
                             row [element button] # set style [
                                   ("padding-left", "137px"),
-                                  ("padding-top", "15px")
+                                  ("padding-top", "15px"), ("padding-bottom", "15px")
                                 ],
                             row [element display] # set style [
-                                  ("text-align", "center"), ("padding-top", "15px"), ("color", "blue")],
-                            row [rule]
+                                  ("text-align", "right"), ("color", "blue"), ("padding-bottom", "0px"),
+                                  ("background","rgba(11, 127, 171,0.2)"), ("border", "1px solid blue")],
+                            row [rule] # set style [("padding-top", "37px")]
                        ] # set style [
                            ("background-color","lightskyblue"),
                            ("text-align", "right"),
@@ -184,7 +195,7 @@ setup window = void $ do
                            ("height", "200px"),
                            ("width","370px"),
                            ("border", "2px solid blue"),
-                           ("padding-bottom", "61px")
+                           ("padding-bottom", "119px")
                      ]
 
     let startGameFunction = do
